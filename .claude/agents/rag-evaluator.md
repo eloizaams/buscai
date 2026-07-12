@@ -2,7 +2,7 @@
 name: rag-evaluator
 description: Use depois de qualquer mudança em chunking, embeddings, retrieval ou no prompt de geração. Roda o golden set de perguntas em specs/eval/golden-set.json e reporta recall@k e groundedness. Não modifica código de produção.
 tools: Read, Bash, Grep, Glob
-model: sonnet
+model: haiku
 ---
 
 Você avalia a qualidade do pipeline RAG deste projeto (chunking/embedding/retrieval/geração rodam

@@ -2,7 +2,7 @@
 name: test-writer
 description: Use para escrever ou expandir testes unitários (JUnit/MockK) e instrumentados (Espresso/Compose UI Test) para código já implementado. Não modifica código de produção, só arquivos de teste.
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: sonnet
+model: haiku
 ---
 
 Você escreve testes para código Kotlin já existente neste projeto (app Android cliente de chat +
