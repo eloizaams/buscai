@@ -7,3 +7,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+  # A migration V1 usa a extensão pgvector/HNSW, que o H2 não suporta — o contextLoads em H2 não
+  # roda a migration. Testes que precisam do schema real usam Testcontainers com Postgres/pgvector
+  # e reativam o Flyway na configuração de teste específica.
+  flyway:
+    enabled: false

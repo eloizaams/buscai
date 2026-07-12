@@ -4,7 +4,7 @@ Ordem sequencial — cada item depende do(s) anterior(es) e cabe numa sessão do
 `kotlin-implementer`. Todos em `backend/`. Rodar `./gradlew ktlintFormat` e os testes do módulo
 ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
 
-- [ ] **T1 — Dependências e schema (Flyway)**
+- [x] **T1 — Dependências e schema (Flyway)**
   Adicionar `org.flywaydb:flyway-core`, `org.flywaydb:flyway-database-postgresql`, Apache PDFBox
   (`org.apache.pdfbox:pdfbox`) e Testcontainers (`org.testcontainers:postgresql`,
   `org.testcontainers:junit-jupiter`, escopo teste) ao `build.gradle.kts`. Criar

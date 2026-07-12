@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # Mesma configuração da produção (application.yml): schema criado só via Flyway.
+      ddl-auto: validate
+  flyway:
+    enabled: true
