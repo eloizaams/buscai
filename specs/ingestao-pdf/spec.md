@@ -9,7 +9,7 @@ sobre livros que já foram ingeridos.
 
 Esta spec cobre exclusivamente a ingestão: transformar um arquivo PDF em conteúdo pesquisável
 (indexado) pela feature de busca/chat, que será especificada separadamente. Corresponde à
-Fase 3 do `planejamento-app-rag-android.md`.
+Fase 3 do `docs/planejamento-app-rag-android.md`.
 
 > Revisão do `android-architect` identificou uma lacuna entre identidade de "arquivo" (hash) e
 > identidade de "livro", registrada em [ADR-0008](../../docs/adr/0008-identidade-e-versionamento-de-livros-ingeridos.md).

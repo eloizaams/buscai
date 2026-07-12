@@ -5,7 +5,7 @@ description: Inicia o loop de SDD para uma feature nova — cria/atualiza specs/
 Feature (nome curto em kebab-case + descrição em uma frase, se não vier em `$ARGUMENTS`,
 pergunte ao usuário): `$ARGUMENTS`
 
-Siga o loop de SDD descrito em `planejamento-app-rag-android.md` (Fase 2) e em `CLAUDE.md`:
+Siga o loop de SDD descrito em `docs/planejamento-app-rag-android.md` (Fase 2) e em `CLAUDE.md`:
 
 1. Leia `specs/constitution.md` (se ainda não existir, avise o usuário e pare — constitution.md
    é pré-requisito de qualquer spec) e `docs/adr/` para não contradizer decisões já tomadas.

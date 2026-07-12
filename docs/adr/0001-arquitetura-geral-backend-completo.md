@@ -4,7 +4,7 @@
 Aceito — 2026-07-12
 
 ## Contexto
-O planejamento original (`planejamento-app-rag-android.md`, Decisão 1) considerava três opções:
+O planejamento original (`../planejamento-app-rag-android.md`, Decisão 1) considerava três opções:
 A) 100% on-device, B) híbrido (ingestão/embeddings/vector DB on-device + geração via API), e
 C) backend completo.
 

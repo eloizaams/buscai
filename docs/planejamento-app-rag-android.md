@@ -10,7 +10,7 @@
 > **Concluída em 2026-07-12.** As tabelas abaixo eram o ponto de partida; a decisão final,
 > incluindo mudanças de escopo (ingestão fora do app, backend completo, Spring Boot, Neon +
 > Render/Fly, auth por chave estática, estado de conversa no servidor), está registrada e é a
-> fonte da verdade em [`docs/adr/`](docs/adr/) (ADR-0001 a ADR-0007). As Fases 3, 4 e 6 abaixo
+> fonte da verdade em [`adr/`](adr/) (ADR-0001 a ADR-0007). As Fases 3, 4 e 6 abaixo
 > precisam ser lidas à luz desses ADRs — a ingestão e o retrieval deixaram de ser feature do app
 > Android e viraram responsabilidade do backend.
 
@@ -34,7 +34,7 @@
 - **Recomendado:** Claude API (Haiku 4.5 p/ custo, Sonnet p/ qualidade) via **proxy backend** — nunca embutir a API key no APK.
 - Modo offline (v2): Gemma via MediaPipe LLM Inference API.
 
-**Entregável da fase:** ADRs (Architecture Decision Records) curtos em `docs/adr/` — vão alimentar as specs.
+**Entregável da fase:** ADRs (Architecture Decision Records) curtos em `adr/` — vão alimentar as specs.
 
 ---
 
