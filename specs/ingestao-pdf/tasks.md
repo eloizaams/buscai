@@ -25,7 +25,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   Voyage AI — confirmar dimensão do modelo `voyage-3` na doc via Context7 antes de fixar no
   schema).
 
-- [ ] **T3 — Extração de texto (PDFBox) + detecção de PDF sem texto**
+- [x] **T3 — Extração de texto (PDFBox) + detecção de PDF sem texto**
   `PdfTextExtractor` (texto por página) e `ScannedPdfDetector` (regra do ADR-0008: página "sem
   texto" = <20 caracteres úteis extraídos; livro sinalizado quando >90% das páginas se
   enquadram). Testes unitários com PDFs de fixture pequenos (um com texto, um "escaneado"
