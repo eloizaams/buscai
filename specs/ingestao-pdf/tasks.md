@@ -101,7 +101,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   chamada ao `EmbeddingClient` fake (ex.: o fake grava o estado da transação corrente no momento da
   chamada e o teste assere que não há uma ativa).
 
-- [ ] **T8 — IngestionService: idempotência e bloqueio de reindexação implícita**
+- [x] **T8 — IngestionService: idempotência e bloqueio de reindexação implícita**
   Implementa a chave de gatilho do ADR-0008: mesma `(bookId, fileHash, embeddingModel,
   embeddingModelVersion)` já `READY` → `IngestionOutcome.Skipped` sem reprocessar; `bookId`
   existente mas hash/versão diferentes e sem `--reindex` → `IngestionOutcome.ReindexRequired`

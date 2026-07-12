@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.annotation.Autowired
@@ -127,6 +128,18 @@ class IngestionServiceTest {
     @TempDir
     lateinit var tempDir: Path
 
+    /**
+     * [FakeEmbeddingClient] é um bean singleton reaproveitado entre métodos de teste (o contexto
+     * Spring é cacheado pelo Testcontainers/`@SpringBootTest`) — sem isso, o estado de uma chamada
+     * de teste vazaria para a próxima e quebraria asserções como "zero chamadas novas" (T8) ou
+     * "N chamadas neste teste" (T7).
+     */
+    @BeforeEach
+    fun resetFakeEmbeddingClient() {
+        fakeEmbeddingClient.calls.clear()
+        fakeEmbeddingClient.transactionActiveDuringCall.clear()
+    }
+
     @Test
     fun `ingere um PDF valido de ponta a ponta, persiste book, bookVersion READY e chunks, sem transacao aberta durante o embedding`() {
         val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
@@ -191,5 +204,76 @@ class IngestionServiceTest {
         assertEquals(BookVersionStatus.FAILED, version.status)
 
         assertTrue(fakeEmbeddingClient.calls.isEmpty(), "não deveria chamar o EmbeddingClient para um PDF escaneado")
+    }
+
+    /**
+     * CA4 (`spec.md`), sub-caso "skip" do ADR-0008: mesma `(bookId, fileHash, embeddingModel,
+     * embeddingModelVersion)` já `READY` — a segunda ingestão não deve reprocessar nada.
+     */
+    @Test
+    fun `ingerir o mesmo PDF e bookId duas vezes pula a segunda vez, sem novas chamadas ao EmbeddingClient`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+
+        val first = ingestionService.ingest(bookId = "livro-skip-t8", title = "Livro Skip T8", file = file)
+        val completed = first as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed na primeira ingestão, obteve: $first")
+        checkNotNull(completed)
+
+        val callsAfterFirst = fakeEmbeddingClient.calls.size
+
+        val second = ingestionService.ingest(bookId = "livro-skip-t8", title = "Livro Skip T8", file = file)
+
+        val skipped = second as? IngestionOutcome.Skipped
+        assertNotNull(skipped, "esperava IngestionOutcome.Skipped na segunda ingestão, obteve: $second")
+        checkNotNull(skipped)
+        assertEquals("livro-skip-t8", skipped.bookId)
+        assertEquals(completed.versionId, skipped.existingVersionId)
+
+        assertEquals(
+            callsAfterFirst,
+            fakeEmbeddingClient.calls.size,
+            "a segunda ingestão (skip) não deveria gerar nenhuma chamada nova ao EmbeddingClient",
+        )
+    }
+
+    /**
+     * CA4 (`spec.md`), sub-caso "bloqueio" do ADR-0008: mesmo `bookId`, PDF com conteúdo (logo
+     * hash) diferente e sem `reindex=true` — a ingestão é bloqueada, sem reprocessar, e a versão
+     * ativa anterior permanece intacta.
+     */
+    @Test
+    fun `ingerir o mesmo bookId com PDF diferente sem reindex bloqueia, sem novas chamadas ao EmbeddingClient e sem alterar a versao`() {
+        val firstFile = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+        val first = ingestionService.ingest(bookId = "livro-bloqueio-t8", title = "Livro Bloqueio T8", file = firstFile)
+        val completed = first as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed na primeira ingestão, obteve: $first")
+        checkNotNull(completed)
+
+        val callsAfterFirst = fakeEmbeddingClient.calls.size
+
+        // Conteúdo diferente (deslocamento das palavras de cada página) => hash diferente.
+        val differentPageTexts =
+            fixtureBookPageTexts().map { pageText -> "$pageText wextra1 wextra2 wextra3" }
+        val secondFile = PdfFixtures.textPdf(tempDir, differentPageTexts)
+
+        val second = ingestionService.ingest(bookId = "livro-bloqueio-t8", title = "Livro Bloqueio T8", file = secondFile)
+
+        val reindexRequired = second as? IngestionOutcome.ReindexRequired
+        assertNotNull(reindexRequired, "esperava IngestionOutcome.ReindexRequired, obteve: $second")
+        checkNotNull(reindexRequired)
+        assertEquals("livro-bloqueio-t8", reindexRequired.bookId)
+        assertEquals(completed.versionId, reindexRequired.existingVersionId)
+
+        assertEquals(
+            callsAfterFirst,
+            fakeEmbeddingClient.calls.size,
+            "a ingestão bloqueada não deveria gerar nenhuma chamada nova ao EmbeddingClient",
+        )
+
+        val book = bookRepository.findById("livro-bloqueio-t8").orElseThrow()
+        assertEquals(completed.versionId, book.activeVersionId, "versao ativa nao deveria mudar quando o bloqueio ocorre")
+
+        val version = bookVersionRepository.findById(completed.versionId).orElseThrow()
+        assertEquals(BookVersionStatus.READY, version.status, "versao ativa anterior deveria continuar READY")
     }
 }

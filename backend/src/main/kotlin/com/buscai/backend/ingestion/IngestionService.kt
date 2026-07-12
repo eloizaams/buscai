@@ -72,13 +72,41 @@ class IngestionService(
     /**
      * Ingere [file] como uma nova versão do livro [bookId]. [title] só é usado para criar o
      * `Book` quando ele ainda não existe (primeira ingestão, ver KDoc da classe).
+     *
+     * Idempotência e bloqueio de reindexação implícita (ADR-0008, T8): antes de qualquer escrita
+     * no banco, calcula [fileHash] e compara com a versão ATIVA do livro (não com qualquer
+     * `BookVersion` que bata a chave de gatilho — uma versão órfã/antiga não deveria disparar
+     * skip). Se `(fileHash, embeddingModel, embeddingModelVersion)` da versão ativa bate com os
+     * valores atuais, devolve [IngestionOutcome.Skipped] sem reprocessar. Se não bate e [reindex]
+     * é `false`, devolve [IngestionOutcome.ReindexRequired] sem reprocessar (protege contra
+     * reprocessamento acidental caro, já que embeddings são API paga). Se [reindex] é `true`,
+     * segue para o pipeline normal (o swap atômico em si é T9, fora do escopo desta task). Um
+     * `Book` sem versão ativa (nenhuma ingestão anterior chegou a `READY`) não é "já ingerido" —
+     * segue direto para o pipeline normal.
      */
     fun ingest(
         bookId: String,
         title: String,
         file: File,
+        reindex: Boolean = false,
     ): IngestionOutcome {
         val fileHash = sha256Hex(file)
+
+        val activeVersionId = bookRepository.findById(bookId).orElse(null)?.activeVersionId
+        if (activeVersionId != null) {
+            val activeVersion = bookVersionRepository.findById(activeVersionId).orElseThrow()
+            val sameTriggerKey =
+                activeVersion.fileHash == fileHash &&
+                    activeVersion.embeddingModel == voyageProperties.model &&
+                    activeVersion.embeddingModelVersion == voyageProperties.modelVersion
+            if (sameTriggerKey) {
+                return IngestionOutcome.Skipped(bookId, activeVersionId)
+            }
+            if (!reindex) {
+                return IngestionOutcome.ReindexRequired(bookId, activeVersionId)
+            }
+        }
+
         val pageCount = pdfTextExtractor.pageCount(file)
 
         val versionId = startVersion(bookId, title, fileHash, pageCount)
