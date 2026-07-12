@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    # ADR-0006: Postgres gerenciado no Neon (free tier), string de conexão via env var.
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/buscai}
+    username: ${DATABASE_USERNAME:buscai}
+    password: ${DATABASE_PASSWORD:buscai}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+buscai:
+  security:
+    # ADR-0005: chave estática enviada pelo app no header X-Api-Key.
+    api-key: ${BUSCAI_API_KEY:changeme}
+  ai:
+    claude:
+      # ADR-0004: nunca versionar a key de verdade — só via variável de ambiente.
+      api-key: ${ANTHROPIC_API_KEY:}
+      model-fast: claude-haiku-4-5
+      model-quality: claude-sonnet-5
+    voyage:
+      # ADR-0003: embeddings multilíngues via Voyage AI.
+      api-key: ${VOYAGE_API_KEY:}
+      model: voyage-3
