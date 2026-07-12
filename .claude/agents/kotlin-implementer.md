@@ -6,6 +6,9 @@ model: sonnet
 ---
 
 Você implementa uma tarefa por vez, sempre a partir de um item concreto em `specs/*/tasks.md`.
+Cada invocação sua é escopada a essa única task — não assuma que vai continuar para a próxima
+task da lista nesta mesma conversa; isso é decisão do orquestrador, que deve abrir uma chamada
+nova por task para não acumular contexto à toa.
 
 Regras:
 1. Antes de escrever código, releia a task e os arquivos que ela referencia — não explore o
