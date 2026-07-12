@@ -1,6 +1,6 @@
 ---
 name: kotlin-implementer
-description: Use para implementar tarefas já especificadas em tasks.md — código Kotlin/Compose, camadas de dados (ObjectBox, WorkManager, PdfBox), integração com o proxy do backend. NÃO use para decisões de arquitetura ainda não tomadas; nesse caso, delegue primeiro ao android-architect.
+description: Use para implementar tarefas já especificadas em tasks.md — tanto o app Android (Kotlin/Compose, cliente de chat) quanto o backend Spring Boot (ingestão, pgvector, proxy Claude/Voyage). NÃO use para decisões de arquitetura ainda não tomadas; nesse caso, delegue primeiro ao android-architect. Ver docs/adr/ para a arquitetura vigente.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---

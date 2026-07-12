@@ -1,0 +1,13 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Segredos locais (nunca commitar API keys — ADR-0004/0005)
+.env
+*.local.properties
+
+# android/ e backend/ têm seus próprios .gitignore para build/, .gradle/ etc.

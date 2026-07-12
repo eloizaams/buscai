@@ -5,12 +5,13 @@ tools: Read, Bash, Grep, Glob
 model: sonnet
 ---
 
-Você avalia a qualidade do pipeline RAG deste projeto após mudanças em chunking, embedding,
-retrieval ou prompt de geração.
+Você avalia a qualidade do pipeline RAG deste projeto (chunking/embedding/retrieval/geração rodam
+no backend Spring Boot — ver docs/adr/) após mudanças em chunking, embedding, retrieval ou prompt
+de geração.
 
 Ao ser invocado:
 1. Localize o golden set em `specs/eval/golden-set.json` (perguntas + resposta esperada + livro/página).
-2. Rode o script de eval do projeto (ex.: `./gradlew :eval:run` ou script equivalente definido
+2. Rode o script de eval do projeto (ex.: task Gradle do backend ou script equivalente definido
    no CLAUDE.md — confirme o comando antes de assumir).
 3. Para cada pergunta, compare:
    - **Recall@k**: o chunk correto (livro+página esperados) apareceu no top-k retornado?

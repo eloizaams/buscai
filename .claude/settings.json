@@ -1,4 +1,22 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew *)",
+      "Bash(cd android && ./gradlew *)",
+      "Bash(cd backend && ./gradlew *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -17,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd $CLAUDE_PROJECT_DIR && ./gradlew ktlintFormat -q"
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/post-edit-format.sh"
           }
         ]
       },
