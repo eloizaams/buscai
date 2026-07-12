@@ -36,13 +36,13 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   normaliza espaços. Testes unitários cobrindo cada regra isoladamente e o caminho feliz
   combinado (prioridade 2 do `test-writer`).
 
-- [ ] **T5 — Chunking + validação estrutural**
+- [x] **T5 — Chunking + validação estrutural**
   `Chunker` (300–800 tokens, overlap 10–20%, respeita parágrafo) e `ChunkValidator` (proxy do
   CA8/ADR-0008: rejeita chunk vazio, fora da faixa de tokens, ou com overlap medido fora de
   10–20%). Testes unitários: fronteiras de parágrafo, overlap, texto vazio/curto demais (menor
   que o mínimo de um chunk) — prioridade 1 do `test-writer`.
 
-- [ ] **T5b — Corrigir agrupamento do `Chunker`: grupo pode fechar abaixo do mínimo antes do fim do livro**
+- [x] **T5b — Corrigir agrupamento do `Chunker`: grupo pode fechar abaixo do mínimo antes do fim do livro**
   Bug encontrado na revisão da T5 (não é caso de borda raro): `groupUnits` fecha o grupo atual
   assim que o **próximo** parágrafo não cabe mais no teto `MAX_OWN_CONTENT_TOKENS`, mesmo que o
   grupo atual ainda esteja abaixo de `MIN_CHUNK_TOKENS` (300). Isso acontece sempre que um
