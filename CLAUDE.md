@@ -109,3 +109,8 @@ decisão do usuário:
 - Depois de qualquer implementação e antes de commit/PR: rode o subagent `code-reviewer`.
 - Mudança em chunking, embedding, retrieval ou prompt de geração: rode o subagent `rag-evaluator`
   contra `specs/eval/golden-set.json` antes de mergear.
+- Economia de contexto: cada item de `tasks.md` é uma chamada nova de `kotlin-implementer`
+  (Agent tool), nunca um `SendMessage` encadeando a próxima task no mesmo agente — isso evitaria
+  que o contexto acumule entre tarefas sem relação. Retomar via `SendMessage` só quando a próxima
+  chamada for genuinamente uma continuação da mesma task (ex.: corrigir algo que o
+  `code-reviewer` apontou nela).
