@@ -71,7 +71,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   Rodar a suíte completa de `ChunkerTest`/`ChunkValidatorTest` (T5) para confirmar que nada
   regrediu.
 
-- [ ] **T6 — Cliente de embeddings (Voyage AI)**
+- [x] **T6 — Cliente de embeddings (Voyage AI)**
   Interface `EmbeddingClient` + implementação HTTP (ADR-0003, modelo `voyage-3`, key só via env
   var `VOYAGE_API_KEY` — nunca hardcode, CLAUDE.md). Cobrir erro de rede/timeout e resposta com
   status de erro da API sem derrubar o processo sem mensagem clara (CA7). Teste unitário com

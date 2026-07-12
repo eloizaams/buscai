@@ -25,3 +25,4 @@ buscai:
       # ADR-0003: embeddings multilíngues via Voyage AI.
       api-key: ${VOYAGE_API_KEY:}
       model: voyage-3
+      model-version: v1
