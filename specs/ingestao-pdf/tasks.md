@@ -16,7 +16,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   este contexto, mantendo o `contextLoads` H2 existente intacto para os testes que não precisam
   de Postgres real).
 
-- [ ] **T2 — Entidades JPA e repositórios**
+- [x] **T2 — Entidades JPA e repositórios**
   Implementar `Book`, `BookVersion`, `Chunk` (pacote `book/`) mapeando o schema de T1, e os
   repositórios Spring Data (`BookRepository`, `BookVersionRepository`, `ChunkRepository`),
   incluindo o finder usado pela chave de gatilho do ADR-0008:
