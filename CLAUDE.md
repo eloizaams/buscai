@@ -86,17 +86,12 @@ Convenções:
 
 ### Fluxo automático (autorização permanente do dono do repo)
 
-Não peça permissão a cada passo — este fluxo está pré-autorizado; só pare se algo exigir uma
-decisão do usuário:
+Este fluxo está pré-autorizado — não peça permissão a cada passo; só pare se algo exigir uma
+decisão do usuário. O *como* de cada passo está nas skills (fonte única); aqui fica só o gatilho:
 
-- **Ao concluir cada task do `tasks.md`** (ktlint + testes do módulo passando): faça o commit
-  daquela task automaticamente, com mensagem seguindo as convenções acima. Nunca acumule várias
-  tasks num commit só. Se estiver na `main`, crie a branch antes.
-- **Ao concluir a última task da implementação** (rode `/pr`, ou a sequência equivalente):
-  1. Rode o `code-reviewer` sobre o diff completo da branch (`git diff main...HEAD`).
-  2. Se houver **Crítico**: corrija os mecânicos e re-revise; se um Crítico exigir decisão sua,
-     **pare e pergunte antes de abrir o PR** — não abra PR com Crítico em aberto.
-  3. `git push` da branch e `gh pr create` para `main`, com o parecer do review resumido no corpo.
+- **Ao concluir cada task do `tasks.md`** (ktlint + testes do módulo passando): rode `/commit`
+  para commitar aquela task. Um commit por task, nunca acumule.
+- **Ao concluir a última task da implementação**: rode `/pr` (revisa a branch → push → abre o PR).
 - **O merge do PR na `main` é sempre do usuário** — nunca faça merge, nem via `gh pr merge`.
 
 ## Regras gerais (SDD)
