@@ -77,7 +77,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   status de erro da API sem derrubar o processo sem mensagem clara (CA7). Teste unitário com
   fake/mock do client HTTP — sem chamar a Voyage real.
 
-- [ ] **T7 — IngestionService: caminho feliz (livro novo), lotes de chunks (não de páginas)**
+- [x] **T7 — IngestionService: caminho feliz (livro novo), lotes de chunks (não de páginas)**
   Orquestra T3→T6 (ver `plan.md`, seção "Processamento incremental" — revisada: o "lote" se
   aplica à extração — já é por página/faixa desde T3 — e à embedding+persistência, não ao
   chunking, que roda sobre o texto do livro inteiro de uma vez, já corrigido em T5b):

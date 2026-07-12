@@ -43,4 +43,33 @@ object PdfFixtures {
         }
         return file
     }
+
+    /**
+     * PDF com uma página por elemento de [pageTexts], cada uma renderizada como uma única linha de
+     * texto (um único `Tj`/`showText`) — usado pelos testes de `IngestionService` (T7), que
+     * precisam controlar exatamente o texto extraído por página (contagem de tokens/parágrafos)
+     * sem risco de quebra de linha automática do PDFBox alterando a contagem.
+     */
+    fun textPdf(
+        dir: Path,
+        pageTexts: List<String>,
+    ): File {
+        val file = dir.resolve("fixture-${System.nanoTime()}.pdf").toFile()
+        PDDocument().use { document ->
+            val font = PDType1Font(Standard14Fonts.FontName.HELVETICA)
+            for (text in pageTexts) {
+                val pdPage = PDPage()
+                document.addPage(pdPage)
+                PDPageContentStream(document, pdPage).use { stream ->
+                    stream.beginText()
+                    stream.setFont(font, 8f)
+                    stream.newLineAtOffset(50f, 700f)
+                    stream.showText(text)
+                    stream.endText()
+                }
+            }
+            document.save(file)
+        }
+        return file
+    }
 }

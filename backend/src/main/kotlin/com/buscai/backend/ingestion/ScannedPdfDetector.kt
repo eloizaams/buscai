@@ -1,5 +1,6 @@
 package com.buscai.backend.ingestion
 
+import org.springframework.stereotype.Component
 import java.io.File
 
 /** Ver ADR-0008: limiar de caracteres úteis abaixo do qual uma página é considerada "sem texto". */
@@ -19,6 +20,7 @@ private const val DETECTION_BATCH_SIZE = 20
  * [SCANNED_PAGE_RATIO_THRESHOLD] (90%) das páginas se enquadram nesse caso — o limiar, em vez de
  * 100%, tolera capas/páginas em branco dentro de um livro majoritariamente textual.
  */
+@Component
 class ScannedPdfDetector {
     /** Decide se uma única página é "sem texto" pelo critério do ADR-0008. */
     fun isPageWithoutText(pageText: String): Boolean = countUsefulChars(pageText) < MIN_USEFUL_CHARS_PER_PAGE
