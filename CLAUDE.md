@@ -72,11 +72,38 @@ Convenções:
 - Testes que precisam de Postgres real (pgvector) usam Testcontainers — a partir da Fase 3, quando
   as entidades existirem. O `contextLoads` atual não testa nada específico de pgvector de propósito.
 
+## Git flow
+
+- `main` é a branch estável. Depois da Fase 1, **nada entra direto na main**: todo trabalho nasce
+  em branch curta a partir dela (`feature/<spec>` para features com spec, `fix/<assunto>` para
+  correções, `chore/<assunto>` para infra/harness) e entra via PR.
+- Pré-requisitos de merge: CI verde (`.github/workflows/ci.yml`) + parecer do subagent
+  `code-reviewer` sem itens Críticos.
+- Commits pequenos e no imperativo, em pt-BR; explique o porquê no corpo quando não for óbvio.
+  Padrão vigente: `Fase N: <o que>` para entregas de fase, `<área>: <o que>` para o resto.
+- Nunca commitar artefato de build, arquivo de IDE ou segredo; nunca usar `git add -f` para
+  contornar um `.gitignore`.
+
+### Fluxo automático (autorização permanente do dono do repo)
+
+Não peça permissão a cada passo — este fluxo está pré-autorizado; só pare se algo exigir uma
+decisão do usuário:
+
+- **Ao concluir cada task do `tasks.md`** (ktlint + testes do módulo passando): faça o commit
+  daquela task automaticamente, com mensagem seguindo as convenções acima. Nunca acumule várias
+  tasks num commit só. Se estiver na `main`, crie a branch antes.
+- **Ao concluir a última task da implementação** (rode `/pr`, ou a sequência equivalente):
+  1. Rode o `code-reviewer` sobre o diff completo da branch (`git diff main...HEAD`).
+  2. Se houver **Crítico**: corrija os mecânicos e re-revise; se um Crítico exigir decisão sua,
+     **pare e pergunte antes de abrir o PR** — não abra PR com Crítico em aberto.
+  3. `git push` da branch e `gh pr create` para `main`, com o parecer do review resumido no corpo.
+- **O merge do PR na `main` é sempre do usuário** — nunca faça merge, nem via `gh pr merge`.
+
 ## Regras gerais (SDD)
 
-- Toda feature nasce de uma spec em `specs/` (constitution.md → spec.md → plan.md → tasks.md,
-  ver planejamento-app-rag-android.md Fase 2). Nunca implementar sem spec — exceção: scaffolding
-  de infraestrutura já coberto por um ADR (como este setup inicial).
+- Toda feature nasce de uma spec em `specs/` (spec.md → plan.md → tasks.md), validada contra
+  `specs/constitution.md` — princípios inegociáveis do projeto. Nunca implementar sem spec —
+  exceção: scaffolding de infraestrutura já coberto por um ADR (como este setup inicial).
 - Antes de decidir arquitetura nova (módulo, dependência, vector DB, provedor de IA, hospedagem):
   delegue ao subagent `android-architect` e registre a decisão em `docs/adr/`.
 - Depois de qualquer implementação e antes de commit/PR: rode o subagent `code-reviewer`.

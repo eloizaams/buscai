@@ -4,9 +4,9 @@
 
 **Context7** (`context7`) — docs atualizadas de bibliotecas direto no contexto, sem depender do
 conhecimento de treino do modelo. Essencial aqui porque o projeto usa libs que mudam rápido e
-onde acertar a API exata importa: ObjectBox (HNSW), PdfBox-Android, WorkManager, Ktor client.
-Uso: peça "consulte a doc do ObjectBox sobre HNSW index" e o Claude resolve o ID da lib e busca
-a versão atual antes de gerar código — evita alucinar assinatura de API antiga.
+onde acertar a API exata importa: Spring Boot 4, pgvector, Apache PDFBox, Jetpack Compose,
+Voyage AI. Uso: peça "consulte a doc do pgvector sobre índice HNSW" e o Claude resolve o ID da
+lib e busca a versão atual antes de gerar código — evita alucinar assinatura de API antiga.
 
 **GitHub** (`github`) — necessário para o fluxo de PR do SDD (task implementada → PR → review).
 Exige um `GITHUB_TOKEN` com escopo `repo` como variável de ambiente (nunca hardcoded no `.mcp.json`
@@ -16,9 +16,9 @@ Exige um `GITHUB_TOKEN` com escopo `repo` como variável de ambiente (nunca hard
 
 - **Filesystem MCP**: geralmente desnecessário — o Claude Code já tem Read/Write/Edit nativos
   mais eficientes em tokens que um MCP genérico de filesystem.
-- **Servidor MCP de banco de dados** (ex.: Postgres/SQLite): só relevante se você mover o proxy
-  backend para persistência própria (histórico de conversas, analytics de uso). Não é necessário
-  para o vector DB on-device (ObjectBox roda embarcado no app, não via MCP).
+- **Servidor MCP de banco de dados** (ex.: Postgres): pode ficar útil na Fase 3+ para inspecionar
+  o Neon (chunks, vetores, histórico de conversa) direto da sessão — mas o psql via Bash cobre o
+  mesmo caso sem custo fixo de contexto. Adicione só se a inspeção manual virar rotina.
 - **MCP de CI/CD** (ex.: status de pipeline): útil só se o ciclo de review incluir aguardar o CI
   no mesmo fluxo. Adicione quando isso virar gargalo real, não antes.
 

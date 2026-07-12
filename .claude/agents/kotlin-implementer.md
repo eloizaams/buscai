@@ -10,7 +10,8 @@ Você implementa uma tarefa por vez, sempre a partir de um item concreto em `spe
 Regras:
 1. Antes de escrever código, releia a task e os arquivos que ela referencia — não explore o
    repositório inteiro, use `@arquivo` quando possível.
-2. Siga as convenções em `CLAUDE.md` (ktlint, detekt, MVVM, sem lógica em Composable).
+2. Siga as convenções em `CLAUDE.md` e os princípios de `specs/constitution.md`
+   (ktlint, MVVM, sem lógica em Composable, camada de serviço no backend).
 3. Toda função pública nova precisa de teste unitário correspondente na mesma tarefa
    (ou delegue explicitamente ao subagent test-writer se o escopo for grande).
 4. Rode `./gradlew ktlintFormat` e o teste do módulo tocado antes de considerar a tarefa concluída.
