@@ -31,7 +31,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   enquadram). Testes unitários com PDFs de fixture pequenos (um com texto, um "escaneado"
   simulado com página em branco/só espaços) — sem rede, sem Testcontainers.
 
-- [ ] **T4 — Limpeza e normalização de texto**
+- [x] **T4 — Limpeza e normalização de texto**
   `TextCleaner`: remove hifenização de quebra de linha, headers/footers repetidos entre páginas,
   normaliza espaços. Testes unitários cobrindo cada regra isoladamente e o caminho feliz
   combinado (prioridade 2 do `test-writer`).
