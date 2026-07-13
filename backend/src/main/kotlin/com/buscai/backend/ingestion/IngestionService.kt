@@ -92,6 +92,18 @@ class IngestionService(
      * ponto do pipeline, a versão ativa anterior nunca é tocada (CA5/CA7, `spec.md`). Um `Book` sem
      * versão ativa (nenhuma ingestão anterior chegou a `READY`) não é "já ingerido" — segue direto
      * para o pipeline normal.
+     *
+     * Guard único (evita o padrão anterior de um try/catch pontual por passo, que a cada rodada
+     * de code review deixava mais um passo do pipeline escapar sem tratamento): todo o corpo do
+     * pipeline roda dentro de UM ÚNICO `try`, com [versionId] declarado fora dele e atualizado
+     * assim que [startVersion] retorna — é o que [fail] usa, no `catch`, para decidir entre marcar
+     * uma `BookVersion` existente como `FAILED` (versão já criada) ou apenas devolver
+     * [IngestionOutcome.Failed] com `versionId` nulo (falha antes de [startVersion], ex.: PDF
+     * corrompido em [sha256Hex]/`pageCount`). Os catches específicos ([ScannedPdfException],
+     * [EmbeddingClientException]) preservam a mensagem já produzida por quem lançou a exceção; o
+     * catch genérico final cobre qualquer outra falha inesperada em qualquer passo (I/O do PDF,
+     * `Chunker`, persistência de chunks, `completeVersion`), sempre marcando a versão como
+     * `FAILED` (quando ela existe) em vez de deixá-la presa em `INGESTING` (CA7, `spec.md`).
      */
     fun ingest(
         bookId: String,
@@ -99,133 +111,91 @@ class IngestionService(
         file: File,
         reindex: Boolean = false,
     ): IngestionOutcome {
-        val fileHash =
-            try {
-                sha256Hex(file)
-            } catch (ex: Exception) {
-                return failReadingPdf(bookId, ex)
+        var versionId: UUID? = null
+        return try {
+            val fileHash = sha256Hex(file)
+
+            val activeVersionId = bookRepository.findById(bookId).orElse(null)?.activeVersionId
+            if (activeVersionId != null) {
+                val activeVersion = bookVersionRepository.findById(activeVersionId).orElseThrow()
+                val sameTriggerKey =
+                    activeVersion.fileHash == fileHash &&
+                        activeVersion.embeddingModel == voyageProperties.model &&
+                        activeVersion.embeddingModelVersion == voyageProperties.modelVersion
+                if (sameTriggerKey) {
+                    return IngestionOutcome.Skipped(bookId, activeVersionId)
+                }
+                if (!reindex) {
+                    return IngestionOutcome.ReindexRequired(bookId, activeVersionId)
+                }
             }
 
-        val activeVersionId = bookRepository.findById(bookId).orElse(null)?.activeVersionId
-        if (activeVersionId != null) {
-            val activeVersion = bookVersionRepository.findById(activeVersionId).orElseThrow()
-            val sameTriggerKey =
-                activeVersion.fileHash == fileHash &&
-                    activeVersion.embeddingModel == voyageProperties.model &&
-                    activeVersion.embeddingModelVersion == voyageProperties.modelVersion
-            if (sameTriggerKey) {
-                return IngestionOutcome.Skipped(bookId, activeVersionId)
-            }
-            if (!reindex) {
-                return IngestionOutcome.ReindexRequired(bookId, activeVersionId)
-            }
-        }
+            // Falha ANTES deste ponto (sha256Hex ou pageCount) não tem versionId — cai no catch
+            // genérico abaixo, que devolve IngestionOutcome.Failed com versionId nulo (CA7).
+            val pageCount = pdfTextExtractor.pageCount(file)
 
-        val pageCount =
-            try {
-                pdfTextExtractor.pageCount(file)
-            } catch (ex: Exception) {
-                // Falha ANTES de existir uma BookVersion (ainda não sabemos nem o número de
-                // páginas) — não há versionId para marcar FAILED, daí IngestionOutcome.Failed com
-                // versionId nulo (CA7, spec.md). Cobre PDF corrompido/inexistente/protegido por
-                // senha/não-PDF, entre outros erros de I/O ou parsing do PDFBox. Mesmo tratamento
-                // (ver [failReadingPdf]) usado para a falha de leitura do arquivo em [sha256Hex],
-                // logo acima — ambas ocorrem antes de existir uma BookVersion.
-                return failReadingPdf(bookId, ex)
+            versionId = startVersion(bookId, title, fileHash, pageCount)
+
+            val drafts = extractCleanAndChunk(file, pageCount)
+
+            when (val validation = chunkValidator.validate(drafts)) {
+                is ChunkValidationResult.Invalid ->
+                    return fail(bookId, versionId, validation.violations.joinToString("; "))
+                ChunkValidationResult.Valid -> Unit
             }
 
-        val versionId = startVersion(bookId, title, fileHash, pageCount)
+            val chunkCount = embedAndPersistInBatches(versionId, drafts)
 
-        val drafts =
-            try {
-                extractCleanAndChunk(file, pageCount)
-            } catch (ex: ScannedPdfException) {
-                val reason = ex.message ?: "PDF sem camada de texto extraível"
-                failVersion(versionId, reason)
-                return IngestionOutcome.Failed(bookId, versionId, reason)
-            } catch (ex: Exception) {
-                // Catch genérico (não `Error`) intencional: não há uma hierarquia de exceção
-                // específica do PDFBox fácil de cobrir aqui, e o objetivo é nunca deixar uma
-                // BookVersion presa em INGESTING nem vazar stack trace cru ao operador (CA7,
-                // spec.md) — qualquer falha de I/O/parsing do PDF a partir daqui cai neste ramo.
-                val reason = "erro ao processar o PDF: ${ex.message ?: ex::class.simpleName}"
-                failVersion(versionId, reason)
-                // Stack trace completo só no log do servidor (ex como último argumento, convenção
-                // SLF4J/Logback) — nunca na reason acima, que vai para o operador via
-                // IngestionOutcome.Failed. Sem isso, um bug de programação genuíno dentro do try
-                // (ex.: no Chunker, chamado por extractCleanAndChunk) não deixaria rastro nenhum
-                // para diagnóstico.
-                logger.warn("bookVersion={}: falha inesperada ao processar o PDF", versionId, ex)
-                return IngestionOutcome.Failed(bookId, versionId, reason)
-            }
-
-        when (val validation = chunkValidator.validate(drafts)) {
-            is ChunkValidationResult.Invalid -> {
-                val reason = validation.violations.joinToString("; ")
-                failVersion(versionId, reason)
-                return IngestionOutcome.Failed(bookId, versionId, reason)
-            }
-            ChunkValidationResult.Valid -> Unit
-        }
-
-        val chunkCount =
-            try {
-                embedAndPersistInBatches(versionId, drafts)
-            } catch (ex: EmbeddingClientException) {
-                val reason = ex.message ?: "erro ao gerar embeddings"
-                failVersion(versionId, reason)
-                return IngestionOutcome.Failed(bookId, versionId, reason)
-            } catch (ex: Exception) {
-                // Catch genérico (depois do catch específico de EmbeddingClientException acima,
-                // ordem importa) para qualquer falha inesperada durante a persistência do lote
-                // (ex.: DataIntegrityViolationException, queda/timeout de conexão do Postgres em
-                // chunkRepository.saveAll) — sem isso, a BookVersion ficaria presa em INGESTING
-                // para sempre e a exceção crua vazaria ao operador (CA7, spec.md).
-                val reason = "erro inesperado ao gerar/persistir chunks: ${ex.message ?: ex::class.simpleName}"
-                failVersion(versionId, reason)
-                // Stack trace completo só no log do servidor (ex como último argumento, convenção
-                // SLF4J/Logback) — nunca na reason acima, que vai para o operador via
-                // IngestionOutcome.Failed.
-                logger.warn("bookVersion={}: falha inesperada ao gerar/persistir chunks", versionId, ex)
-                return IngestionOutcome.Failed(bookId, versionId, reason)
-            }
-
-        try {
             completeVersion(bookId, versionId, pageCount, chunkCount)
-        } catch (ex: Exception) {
-            // completeVersion roda numa TransactionTemplate — se algo falhar dentro dela, o Spring
-            // já reverte a transação inteira automaticamente (a versão nova nunca chega a READY, e
-            // se havia uma versão ativa anterior, o swap nunca acontece parcialmente: ela continua
-            // intacta). Aqui só marcamos a versão NOVA como FAILED (numa transação curta separada,
-            // via failVersion) e devolvemos IngestionOutcome.Failed em vez de deixar a exceção crua
-            // subir ao operador (CA7, spec.md).
-            val reason = "erro inesperado ao finalizar a ingestão: ${ex.message ?: ex::class.simpleName}"
-            failVersion(versionId, reason)
-            logger.warn("bookVersion={}: falha inesperada ao finalizar a ingestão", versionId, ex)
-            return IngestionOutcome.Failed(bookId, versionId, reason)
-        }
 
-        return IngestionOutcome.Completed(bookId, versionId, pageCount, chunkCount)
+            IngestionOutcome.Completed(bookId, versionId, pageCount, chunkCount)
+        } catch (ex: ScannedPdfException) {
+            fail(bookId, versionId, ex.message ?: "PDF sem camada de texto extraível")
+        } catch (ex: EmbeddingClientException) {
+            fail(bookId, versionId, ex.message ?: "erro ao gerar embeddings")
+        } catch (ex: Exception) {
+            // Catch genérico (não `Error`) intencional: nenhum passo do pipeline (leitura do
+            // arquivo, extração/limpeza/chunking do PDF, persistência de chunks, swap atômico em
+            // completeVersion) pode deixar uma exceção crua escapar nem uma BookVersion presa em
+            // INGESTING (CA7, spec.md). Mensagem varia só para deixar claro ao operador se a falha
+            // foi antes (sem BookVersion) ou depois (BookVersion existente marcada FAILED) de
+            // startVersion — sem reason específica por passo, que hoje já é coberta pelos catches
+            // acima ou por ChunkValidationResult.Invalid.
+            val reason =
+                if (versionId == null) {
+                    "não foi possível ler o PDF: ${ex.message ?: ex::class.simpleName}"
+                } else {
+                    "erro inesperado ao processar a ingestão: ${ex.message ?: ex::class.simpleName}"
+                }
+            fail(bookId, versionId, reason, ex)
+        }
     }
 
     /**
-     * Falha de leitura do arquivo ANTES de existir uma `BookVersion` — não há `versionId` para
-     * marcar `FAILED`, daí [IngestionOutcome.Failed] com `versionId` nulo (CA7, `spec.md`). Usado
-     * pelos dois pontos de [ingest] que leem o arquivo antes de [startVersion] existir: [sha256Hex]
-     * e `PdfTextExtractor.pageCount`.
+     * Helper único para o padrão "logar + marcar BookVersion como FAILED (se já existir) + montar
+     * IngestionOutcome.Failed" — usado por todo `catch` de [ingest] (reduz a duplicação antes
+     * espalhada em cada ramo de falha do pipeline). [ex], quando presente, vai como último
+     * argumento do log (convenção SLF4J/Logback) para stack trace completo no log do servidor;
+     * [reason] é sempre curta e sem stack trace, é o que chega ao operador via
+     * [IngestionOutcome.Failed]. [ex] é omitido para falhas "esperadas"/de domínio já com mensagem
+     * clara própria ([ScannedPdfException], [EmbeddingClientException]) — só o catch genérico
+     * (bugs/erros de infraestrutura inesperados) precisa do stack trace para diagnóstico.
      */
-    private fun failReadingPdf(
+    private fun fail(
         bookId: String,
-        ex: Exception,
+        versionId: UUID?,
+        reason: String,
+        ex: Exception? = null,
     ): IngestionOutcome.Failed {
-        val reason = "não foi possível ler o PDF: ${ex.message ?: ex::class.simpleName}"
-        logger.warn("Ingestão de bookId={} falhou ao ler o PDF: {}", bookId, reason)
-        // Stack trace completo só no log do servidor (ex como último argumento, convenção
-        // SLF4J/Logback) — nunca na reason acima, que vai para o operador via
-        // IngestionOutcome.Failed. Sem isso, um bug de programação genuíno dentro do try (não um
-        // PDF corrompido de fato) não deixaria rastro nenhum para diagnóstico.
-        logger.warn("bookId={}: falha inesperada ao ler o PDF", bookId, ex)
-        return IngestionOutcome.Failed(bookId, versionId = null, reason = reason)
+        if (ex != null) {
+            logger.warn("Ingestão de bookId={} bookVersion={} falhou: {}", bookId, versionId, reason, ex)
+        } else {
+            logger.warn("Ingestão de bookId={} bookVersion={} falhou: {}", bookId, versionId, reason)
+        }
+        if (versionId != null) {
+            failVersion(versionId, reason)
+        }
+        return IngestionOutcome.Failed(bookId, versionId, reason)
     }
 
     /**
@@ -346,13 +316,13 @@ class IngestionService(
      * Marca a `BookVersion` como `FAILED` numa transação curta (CA7, `spec.md`). [reason] não é
      * persistido — o schema (`V1__book_bookversion_chunk.sql`) não tem uma coluna para isso; a
      * mensagem chega ao operador via o `IngestionOutcome.Failed` devolvido por [ingest], não pela
-     * linha do banco.
+     * linha do banco. O log da falha é responsabilidade de [fail] (único chamador) — aqui só a
+     * atualização do banco.
      */
     private fun failVersion(
         versionId: UUID,
         reason: String,
     ) {
-        logger.warn("Ingestão de bookVersion={} falhou: {}", versionId, reason)
         transactionTemplate.executeWithoutResult {
             val version = bookVersionRepository.findById(versionId).orElseThrow()
             version.status = BookVersionStatus.FAILED
