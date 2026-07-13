@@ -1,11 +1,17 @@
 package com.buscai.backend.ingestion
 
-import com.buscai.backend.book.BookRepository
-import com.buscai.backend.book.BookVersionRepository
-import com.buscai.backend.book.BookVersionStatus
-import com.buscai.backend.book.Chunk
-import com.buscai.backend.book.ChunkRepository
-import com.buscai.backend.book.EMBEDDING_DIMENSIONS
+import com.buscai.backend.catalog.BookRepository
+import com.buscai.backend.catalog.BookVersionRepository
+import com.buscai.backend.catalog.BookVersionStatus
+import com.buscai.backend.catalog.Chunk
+import com.buscai.backend.catalog.ChunkRepository
+import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
+import com.buscai.backend.ingestion.chunking.MAX_CHUNK_TOKENS
+import com.buscai.backend.ingestion.chunking.MIN_CHUNK_TOKENS
+import com.buscai.backend.ingestion.embedding.EmbeddingClient
+import com.buscai.backend.ingestion.embedding.EmbeddingClientException
+import com.buscai.backend.ingestion.pdf.PdfFixtures
+import com.buscai.backend.ingestion.pdf.PdfTextExtractor
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
