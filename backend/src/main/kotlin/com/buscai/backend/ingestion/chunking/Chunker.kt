@@ -62,7 +62,7 @@ internal fun tokenize(text: String): List<String> = TOKEN_REGEX.findAll(text).ma
 
 /**
  * Resultado do [Chunker]: um trecho de texto pronto para ser validado ([ChunkValidator]) e depois
- * persistido como `com.buscai.backend.book.Chunk` (T7, depois de gerar o embedding). Carrega só os
+ * persistido como `com.buscai.backend.catalog.Chunk` (T7, depois de gerar o embedding). Carrega só os
  * campos que o próprio chunking sabe preencher — [chapter] fica sempre nulo aqui: detecção de
  * capítulo está fora do escopo desta task, reservada para uma feature futura.
  */
