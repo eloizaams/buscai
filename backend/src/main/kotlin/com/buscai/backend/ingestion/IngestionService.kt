@@ -126,6 +126,11 @@ class IngestionService(
                 // senha/não-PDF, entre outros erros de I/O ou parsing do PDFBox.
                 val reason = "não foi possível ler o PDF: ${ex.message ?: ex::class.simpleName}"
                 logger.warn("Ingestão de bookId={} falhou ao ler o PDF: {}", bookId, reason)
+                // Stack trace completo só no log do servidor (ex como último argumento, convenção
+                // SLF4J/Logback) — nunca na reason acima, que vai para o operador via
+                // IngestionOutcome.Failed. Sem isso, um bug de programação genuíno dentro do try
+                // (não um PDF corrompido de fato) não deixaria rastro nenhum para diagnóstico.
+                logger.warn("bookId={}: falha inesperada ao ler o PDF", bookId, ex)
                 return IngestionOutcome.Failed(bookId, versionId = null, reason = reason)
             }
 
@@ -145,6 +150,12 @@ class IngestionService(
                 // spec.md) — qualquer falha de I/O/parsing do PDF a partir daqui cai neste ramo.
                 val reason = "erro ao processar o PDF: ${ex.message ?: ex::class.simpleName}"
                 failVersion(versionId, reason)
+                // Stack trace completo só no log do servidor (ex como último argumento, convenção
+                // SLF4J/Logback) — nunca na reason acima, que vai para o operador via
+                // IngestionOutcome.Failed. Sem isso, um bug de programação genuíno dentro do try
+                // (ex.: no Chunker, chamado por extractCleanAndChunk) não deixaria rastro nenhum
+                // para diagnóstico.
+                logger.warn("bookVersion={}: falha inesperada ao processar o PDF", versionId, ex)
                 return IngestionOutcome.Failed(bookId, versionId, reason)
             }
 

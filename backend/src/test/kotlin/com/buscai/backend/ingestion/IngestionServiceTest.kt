@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -25,6 +28,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -96,6 +100,48 @@ class IngestionServiceTest {
     }
 
     /**
+     * Substitui o `PdfTextExtractor` real por um spy que delega para a implementação real (mesmo
+     * padrão de `IngestionServiceVolumeTest.VolumeTestConfig`), mas pode ser instruído (via
+     * [ExtractRangeFailureSwitch.shouldFail]) a lançar uma exceção genérica em [extractRange] — sem
+     * alterar [PdfTextExtractor.pageCount], que continua real. Isso simula um bug de programação
+     * genuíno dentro de `extractCleanAndChunk` (chamado DEPOIS que a `BookVersion` já existe, ao
+     * contrário do catch de `pageCount`) sem precisar de um segundo contexto Spring/Testcontainers só
+     * para este caso — o switch é resetado a cada teste (ver [resetExtractRangeFailureSwitch]) para
+     * não vazar para os demais testes deste arquivo, que precisam do comportamento real de extração.
+     */
+    @TestConfiguration
+    class InstrumentedPdfTextExtractorConfig {
+        @Bean
+        fun extractRangeFailureSwitch(): ExtractRangeFailureSwitch = ExtractRangeFailureSwitch()
+
+        @Bean
+        @Primary
+        fun instrumentedPdfTextExtractor(switch: ExtractRangeFailureSwitch): PdfTextExtractor {
+            val spy = Mockito.spy(PdfTextExtractor())
+            Mockito
+                .doAnswer { invocation ->
+                    if (switch.shouldFail) {
+                        throw RuntimeException("falha simulada de extração")
+                    }
+                    invocation.callRealMethod()
+                }.`when`(spy)
+                // `any(File::class.java)` devolve null (API Java do Mockito); `extractRange` tem
+                // `file: File` não anulável, e o Kotlin insere uma checagem de nulidade no início do
+                // método que dispara antes do interceptor do Mockito registrar a invocação — por
+                // isso o `?:` com um File dummy (nunca usado de fato; só evita o NPE na stubagem),
+                // mesmo cuidado documentado em `IngestionServiceVolumeTest.VolumeTestConfig`.
+                .extractRange(any(File::class.java) ?: File(""), anyInt(), anyInt())
+            return spy
+        }
+    }
+
+    /** Ver KDoc de [InstrumentedPdfTextExtractorConfig]. */
+    class ExtractRangeFailureSwitch {
+        @Volatile
+        var shouldFail: Boolean = false
+    }
+
+    /**
      * Fake de [EmbeddingClient] que grava, para cada chamada, quantos textos vieram e se havia uma
      * transação de banco ativa no momento da chamada — é a checagem central de T7 (nenhuma
      * transação de banco pode ficar aberta durante a chamada de rede à Voyage, ver `plan.md`).
@@ -139,20 +185,25 @@ class IngestionServiceTest {
     @Autowired
     lateinit var fakeEmbeddingClient: FakeEmbeddingClient
 
+    @Autowired
+    lateinit var extractRangeFailureSwitch: ExtractRangeFailureSwitch
+
     @TempDir
     lateinit var tempDir: Path
 
     /**
-     * [FakeEmbeddingClient] é um bean singleton reaproveitado entre métodos de teste (o contexto
-     * Spring é cacheado pelo Testcontainers/`@SpringBootTest`) — sem isso, o estado de uma chamada
-     * de teste vazaria para a próxima e quebraria asserções como "zero chamadas novas" (T8) ou
-     * "N chamadas neste teste" (T7).
+     * [FakeEmbeddingClient] e [ExtractRangeFailureSwitch] são beans singleton reaproveitados entre
+     * métodos de teste (o contexto Spring é cacheado pelo Testcontainers/`@SpringBootTest`) — sem
+     * isso, o estado de uma chamada de teste vazaria para a próxima e quebraria asserções como "zero
+     * chamadas novas" (T8), "N chamadas neste teste" (T7) ou o comportamento real de extração
+     * esperado pelos demais testes (que não devem herdar `shouldFail = true` de um teste anterior).
      */
     @BeforeEach
     fun resetFakeEmbeddingClient() {
         fakeEmbeddingClient.calls.clear()
         fakeEmbeddingClient.transactionActiveDuringCall.clear()
         fakeEmbeddingClient.failOnCallNumber = null
+        extractRangeFailureSwitch.shouldFail = false
     }
 
     @Test
@@ -256,6 +307,40 @@ class IngestionServiceTest {
         )
 
         assertTrue(fakeEmbeddingClient.calls.isEmpty(), "não deveria chamar o EmbeddingClient para um PDF corrompido")
+    }
+
+    /**
+     * CA7 (`spec.md`), segundo caminho de falha do catch genérico adicionado a
+     * `extractCleanAndChunk`: ao contrário do teste de PDF corrompido acima (falha ANTES de existir
+     * uma `BookVersion`, em `pageCount`), aqui a falha simulada acontece DEPOIS — `pageCount` roda
+     * normal (via [ExtractRangeFailureSwitch], só `extractRange` é instruído a lançar) e a
+     * `BookVersion` já existe em `INGESTING` quando o erro ocorre. A ingestão precisa marcar essa
+     * versão como `FAILED` (nunca deixá-la presa em `INGESTING`) e nunca chegar a chamar o
+     * `EmbeddingClient`.
+     */
+    @Test
+    fun `falha inesperada dentro de extractCleanAndChunk marca a BookVersion existente como FAILED`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+        extractRangeFailureSwitch.shouldFail = true
+
+        val outcome =
+            ingestionService.ingest(bookId = "livro-falha-extracao-t7", title = "Livro Falha Extração", file = file)
+
+        val failed = outcome as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $outcome")
+        checkNotNull(failed)
+        assertNotNull(
+            failed.versionId,
+            "esperava um versionId não nulo — a BookVersion já existia quando a falha ocorreu",
+        )
+
+        val version = bookVersionRepository.findById(checkNotNull(failed.versionId)).orElseThrow()
+        assertEquals(BookVersionStatus.FAILED, version.status)
+
+        assertTrue(
+            fakeEmbeddingClient.calls.isEmpty(),
+            "a falha ocorreu antes do embedding, não deveria haver chamadas ao EmbeddingClient",
+        )
     }
 
     /**
