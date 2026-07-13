@@ -18,7 +18,14 @@ Ao ser invocado:
    - Violações de camada (lógica de negócio em Composable no app; no backend, acesso direto ao
      repositório/pgvector fora da camada de serviço)
    - Tratamento de erro ausente em operações de I/O (chamadas de rede ao backend, timeouts de
-     cold start — ver ADR-0006 —, chamadas às APIs da Claude/Voyage)
+     cold start — ver ADR-0006 —, chamadas às APIs da Claude/Voyage). Ao avaliar isso num método
+     que orquestra vários passos sequenciais (ex.: pipeline de ingestão), releia o método INTEIRO
+     de ponta a ponta — não só o trecho do diff — e trace cada chamada dentro dele. Um catch já
+     existente para um passo não implica que os demais estejam cobertos; já aconteceu de um review
+     fatiado por commit levar 3 rodadas para pegar todos os passos desprotegidos do mesmo método
+     (`IngestionService.ingest`, `specs/ingestao-pdf/`). Se vários passos precisam do mesmo
+     tratamento de falha, aponte isso como o problema estrutural (não como itens separados) e
+     sugira um guard único em vez de mais um catch pontual.
    - Endpoints do backend sem validação da chave de API (ADR-0005) antes de chamar APIs pagas
    - Cobertura de teste para o código novo
    - Legibilidade e nomenclatura consistente com o resto do módulo
