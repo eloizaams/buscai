@@ -124,7 +124,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   cada N páginas/chunks). Teste: cada variante de `IngestionOutcome` produz a mensagem esperada
   (teste unitário de formatação, sem subir o Spring context).
 
-- [ ] **T11 — Teste de aceite de volume (CA2 — obrigatório, não opcional)**
+- [x] **T11 — Teste de aceite de volume (CA2 — obrigatório, não opcional)**
   Livros com mais de 300 páginas são realidade do acervo, não caso extremo — este teste faz parte
   do critério de aceite da feature, roda no CI (não fica marcado `@Tag("slow")`/excluído). Gera um
   PDF sintético de ~600–800 páginas (fixture determinística, não baixar arquivo externo), ingere

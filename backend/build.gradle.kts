@@ -76,3 +76,61 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// T11 (`specs/ingestao-pdf/tasks.md`, CA2 `specs/ingestao-pdf/spec.md`): teste de aceite de volume
+// (`IngestionServiceVolumeTest`, PDF sintético de ~700 páginas) roda numa JVM de teste isolada, com
+// heap restrito. Excluído da task `test` normal (que roda com o heap default da JVM) para não
+// reduzir o heap do restante da suíte só por causa deste teste; em vez disso, `check` depende de
+// `volumeTest`, então `./gradlew build`/`check` (o comando do CI, ver `.github/workflows/ci.yml`)
+// sempre roda os dois — este teste nunca fica marcado `@Tag("slow")`/excluído do CI, só isolado em
+// processo próprio.
+val volumeTestClassName = "com.buscai.backend.ingestion.IngestionServiceVolumeTest"
+
+tasks.named<Test>("test") {
+    filter {
+        excludeTestsMatching(volumeTestClassName)
+    }
+}
+
+val volumeTest =
+    tasks.register<Test>("volumeTest") {
+        description = "Teste de aceite de volume (T11, CA2) — livro sintético de ~700 páginas, heap restrito."
+        group = "verification"
+        useJUnitPlatform()
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+        filter {
+            includeTestsMatching(volumeTestClassName)
+        }
+        // 256m — como e por que este valor foi escolhido (medido localmente, Docker disponível,
+        // reproduzir com `./gradlew volumeTest`):
+        //
+        // 1. Bisseção manual mostrou que o pipeline ATUAL (batches de `PAGE_EXTRACTION_BATCH_SIZE`
+        //    páginas + lotes de chunks) sobe o contexto Spring inteiro (Hibernate, Flyway,
+        //    Testcontainers/JDBC) e ingere o livro de 700 páginas com sucesso a partir de ~64m de
+        //    heap (48m já estoura `OutOfMemoryError` só no boot do contexto — piso do framework,
+        //    nada a ver com o tamanho do livro). 256m dá ~4x de folga sobre esse piso local, para
+        //    absorver variação de ambiente (runner do CI, GC, JIT) sem ficar frágil/instável.
+        // 2. Reversão deliberada e temporária de `PAGE_EXTRACTION_BATCH_SIZE` (T11 experimentou
+        //    isso, não fica no código final) para um valor gigante — simulando a regressão real
+        //    (extrair o livro inteiro numa única chamada, sem lotes) — NÃO estourou OOM neste heap,
+        //    em nenhum valor testado até 64m: o texto de um livro sintético de 700 páginas (mesmo
+        //    sem lotes) é da ordem de poucos MB, muito abaixo do piso fixo de ~50-60MB só para
+        //    subir Spring+Hibernate+Testcontainers nesta JVM. Fazer esse valor de fato estourar
+        //    exigiria inflar o texto por página a um tamanho pouco realista (dezenas de MB por
+        //    livro), o que contraria a orientação da própria T11 de manter o texto no mínimo
+        //    necessário para não pesar o tempo de CI.
+        // 3. Por isso a prova determinística e independente do tamanho do livro contra essa
+        //    regressão específica é a asserção (b) do teste (via `PageBatchSizeRecorder`): o pico de
+        //    páginas extraídas por chamada é sempre `PAGE_EXTRACTION_BATCH_SIZE`, não o tamanho do
+        //    livro. O heap restrito aqui é uma defesa complementar (canário): garante que o
+        //    footprint atual do pipeline continua pequeno e estável, e pegaria uma regressão mais
+        //    grave (ex.: manter várias cópias completas do livro/chunks/embeddings em memória ao
+        //    mesmo tempo, ou aumentar muito a dimensão do embedding) mesmo sem depender do
+        //    instrumento do item 3.
+        maxHeapSize = "256m"
+    }
+
+tasks.named("check") {
+    dependsOn(volumeTest)
+}

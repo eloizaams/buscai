@@ -22,8 +22,13 @@ import java.util.UUID
  * `specs/ingestao-pdf/spec.md`), mesmo critério de lote já usado por [ScannedPdfDetector]. O texto
  * já limpo de cada lote é acumulado em memória (poucos MB por livro, ver `plan.md`) para o
  * [Chunker] rodar sobre o livro inteiro de uma vez (T5b).
+ *
+ * `internal` (não `private`) só para o teste de aceite de volume (T11,
+ * `IngestionServiceVolumeTest`) poder comparar o pico de páginas extraídas por chamada contra este
+ * valor sem duplicá-lo — `internal` continua invisível fora do módulo `backend`, mesma visibilidade
+ * já usada por [countTokens]/[tokenize] em `Chunker.kt` para o mesmo propósito.
  */
-private const val PAGE_EXTRACTION_BATCH_SIZE = 20
+internal const val PAGE_EXTRACTION_BATCH_SIZE = 20
 
 /** PDF sinalizado por [ScannedPdfDetector] como sem camada de texto extraível (CA3, `spec.md`). */
 private class ScannedPdfException(
