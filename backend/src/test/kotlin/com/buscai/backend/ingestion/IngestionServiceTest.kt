@@ -3,6 +3,7 @@ package com.buscai.backend.ingestion
 import com.buscai.backend.book.BookRepository
 import com.buscai.backend.book.BookVersionRepository
 import com.buscai.backend.book.BookVersionStatus
+import com.buscai.backend.book.Chunk
 import com.buscai.backend.book.ChunkRepository
 import com.buscai.backend.book.EMBEDDING_DIMENSIONS
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -142,6 +143,52 @@ class IngestionServiceTest {
     }
 
     /**
+     * Substitui o `ChunkRepository` real por um decorator que delega tudo para o bean real do
+     * Spring Data (injetado aqui como parâmetro, não instanciado manualmente — é uma interface sem
+     * implementação própria no módulo, ao contrário de [PdfTextExtractor]), exceto `saveAll`, que
+     * pode ser instruído (via [SaveAllFailureSwitch.shouldFail]) a lançar uma exceção genérica.
+     * Delegação Kotlin (`by delegate`) em vez de spy do Mockito sobre o proxy dinâmico do Spring
+     * Data — mais simples e sem o risco de deixar o `ThreadSafeMockingProgress` do Mockito num
+     * estado de "unfinished stubbing" ao interceptar um método genérico (`saveAll`) num proxy já
+     * gerenciado pelo Spring. Simula item Crítico do code review final da branch: uma falha
+     * inesperada (ex.: `DataIntegrityViolationException`, queda de conexão) durante a persistência
+     * de um lote de chunks dentro de `IngestionService.embedAndPersistInBatches` — distinto do
+     * teste já existente de falha do `EmbeddingClient` (`falha no meio da reindexacao...`), que
+     * simula erro na geração do embedding, não na persistência em si.
+     */
+    @TestConfiguration
+    class InstrumentedChunkRepositoryConfig {
+        @Bean
+        fun saveAllFailureSwitch(): SaveAllFailureSwitch = SaveAllFailureSwitch()
+
+        @Bean
+        @Primary
+        fun instrumentedChunkRepository(
+            chunkRepository: ChunkRepository,
+            switch: SaveAllFailureSwitch,
+        ): ChunkRepository = InstrumentedChunkRepository(chunkRepository, switch)
+    }
+
+    /** Ver KDoc de [InstrumentedChunkRepositoryConfig]. */
+    class InstrumentedChunkRepository(
+        private val delegate: ChunkRepository,
+        private val switch: SaveAllFailureSwitch,
+    ) : ChunkRepository by delegate {
+        override fun <S : Chunk> saveAll(entities: Iterable<S>): List<S> {
+            if (switch.shouldFail) {
+                throw RuntimeException("falha simulada de persistência de chunks")
+            }
+            return delegate.saveAll(entities)
+        }
+    }
+
+    /** Ver KDoc de [InstrumentedChunkRepositoryConfig]. */
+    class SaveAllFailureSwitch {
+        @Volatile
+        var shouldFail: Boolean = false
+    }
+
+    /**
      * Fake de [EmbeddingClient] que grava, para cada chamada, quantos textos vieram e se havia uma
      * transação de banco ativa no momento da chamada — é a checagem central de T7 (nenhuma
      * transação de banco pode ficar aberta durante a chamada de rede à Voyage, ver `plan.md`).
@@ -188,6 +235,9 @@ class IngestionServiceTest {
     @Autowired
     lateinit var extractRangeFailureSwitch: ExtractRangeFailureSwitch
 
+    @Autowired
+    lateinit var saveAllFailureSwitch: SaveAllFailureSwitch
+
     @TempDir
     lateinit var tempDir: Path
 
@@ -204,6 +254,7 @@ class IngestionServiceTest {
         fakeEmbeddingClient.transactionActiveDuringCall.clear()
         fakeEmbeddingClient.failOnCallNumber = null
         extractRangeFailureSwitch.shouldFail = false
+        saveAllFailureSwitch.shouldFail = false
     }
 
     @Test
@@ -341,6 +392,35 @@ class IngestionServiceTest {
             fakeEmbeddingClient.calls.isEmpty(),
             "a falha ocorreu antes do embedding, não deveria haver chamadas ao EmbeddingClient",
         )
+    }
+
+    /**
+     * Item Crítico do code review final da branch (CA7, `spec.md`): antes deste fix, o catch em
+     * volta de `embedAndPersistInBatches` só cobria `EmbeddingClientException` — qualquer outra
+     * falha durante a persistência do lote (`chunkRepository.saveAll`, ex.:
+     * `DataIntegrityViolationException`, queda/timeout de conexão do Postgres) escapava crua,
+     * deixando a `BookVersion` presa em `INGESTING` para sempre. Aqui a falha é simulada via
+     * [InstrumentedChunkRepositoryConfig] dentro da própria persistência, não no `EmbeddingClient`
+     * (esse caminho já é coberto por `falha no meio da reindexacao...`).
+     */
+    @Test
+    fun `falha inesperada dentro da persistencia de chunks marca a BookVersion como FAILED`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+        saveAllFailureSwitch.shouldFail = true
+
+        val outcome =
+            ingestionService.ingest(bookId = "livro-falha-persistencia-t7", title = "Livro Falha Persistência", file = file)
+
+        val failed = outcome as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $outcome")
+        checkNotNull(failed)
+        assertNotNull(
+            failed.versionId,
+            "esperava um versionId não nulo — a BookVersion já existia quando a falha ocorreu",
+        )
+
+        val version = bookVersionRepository.findById(checkNotNull(failed.versionId)).orElseThrow()
+        assertEquals(BookVersionStatus.FAILED, version.status, "a BookVersion não deveria ficar presa em INGESTING")
     }
 
     /**
