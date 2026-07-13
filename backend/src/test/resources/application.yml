@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:buscai;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+  # A migration V1 usa a extensão pgvector/HNSW, que o H2 não suporta — o contextLoads em H2 não
+  # roda a migration. Testes que precisam do schema real usam Testcontainers com Postgres/pgvector
+  # e reativam o Flyway na configuração de teste específica.
+  flyway:
+    enabled: false

@@ -1,0 +1,18 @@
+{
+  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). Preencher com 30-50 perguntas reais assim que o primeiro livro for ingerido. Cada item segue o schema do exemplo abaixo. O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças.",
+  "schema_example": {
+    "id": "ex-001",
+    "question": "Pergunta em linguagem natural como o usuário faria no app",
+    "expected_answer_gist": "Núcleo factual que a resposta precisa conter para ser considerada correta",
+    "expected_sources": [
+      {
+        "book_id": "slug-do-livro",
+        "pages": [12, 13],
+        "chapter": "3"
+      }
+    ],
+    "scope": "all | slug-do-livro",
+    "notes": "Opcional: por que esta pergunta está no set (ex.: nome próprio, termo exato, multi-chunk)"
+  },
+  "questions": []
+}
