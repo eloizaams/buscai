@@ -25,6 +25,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -218,6 +219,43 @@ class IngestionServiceTest {
         assertEquals(BookVersionStatus.FAILED, version.status)
 
         assertTrue(fakeEmbeddingClient.calls.isEmpty(), "não deveria chamar o EmbeddingClient para um PDF escaneado")
+    }
+
+    /**
+     * CA7 (`spec.md`): um arquivo que não é um PDF válido (bytes aleatórios) falha em
+     * `PdfTextExtractor.pageCount` — ANTES de existir uma `BookVersion` (ver KDoc de
+     * `IngestionService.ingest`). A ingestão precisa devolver `IngestionOutcome.Failed` com uma
+     * mensagem específica, nunca deixar a exceção crua do PDFBox subir ao chamador.
+     */
+    @Test
+    fun `PDF corrompido falha a ingestao com mensagem clara, sem BookVersion orfa e sem chamar o EmbeddingClient`() {
+        val file = tempDir.resolve("corrompido.pdf").toFile()
+        Files.write(file.toPath(), byteArrayOf(1, 2, 3))
+
+        val outcome = ingestionService.ingest(bookId = "livro-corrompido-t7", title = "Livro Corrompido", file = file)
+
+        val failed = outcome as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $outcome")
+        checkNotNull(failed)
+        assertEquals("livro-corrompido-t7", failed.bookId)
+        assertTrue(
+            failed.reason.contains("PDF", ignoreCase = true),
+            "mensagem deveria mencionar o problema de leitura do PDF, não um stack trace: ${failed.reason}",
+        )
+        assertFalse(
+            failed.reason.contains("\tat "),
+            "mensagem não deveria conter um stack trace cru: ${failed.reason}",
+        )
+
+        // Falha ANTES de existir uma BookVersion (pageCount nem chegou a rodar) — nenhuma versão
+        // órfã em INGESTING.
+        assertEquals(null, failed.versionId)
+        assertTrue(
+            bookVersionRepository.findAll().none { it.bookId == "livro-corrompido-t7" },
+            "não deveria existir nenhuma BookVersion para um PDF que falhou antes de pageCount",
+        )
+
+        assertTrue(fakeEmbeddingClient.calls.isEmpty(), "não deveria chamar o EmbeddingClient para um PDF corrompido")
     }
 
     /**

@@ -116,7 +116,18 @@ class IngestionService(
             }
         }
 
-        val pageCount = pdfTextExtractor.pageCount(file)
+        val pageCount =
+            try {
+                pdfTextExtractor.pageCount(file)
+            } catch (ex: Exception) {
+                // Falha ANTES de existir uma BookVersion (ainda não sabemos nem o número de
+                // páginas) — não há versionId para marcar FAILED, daí IngestionOutcome.Failed com
+                // versionId nulo (CA7, spec.md). Cobre PDF corrompido/inexistente/protegido por
+                // senha/não-PDF, entre outros erros de I/O ou parsing do PDFBox.
+                val reason = "não foi possível ler o PDF: ${ex.message ?: ex::class.simpleName}"
+                logger.warn("Ingestão de bookId={} falhou ao ler o PDF: {}", bookId, reason)
+                return IngestionOutcome.Failed(bookId, versionId = null, reason = reason)
+            }
 
         val versionId = startVersion(bookId, title, fileHash, pageCount)
 
@@ -125,6 +136,14 @@ class IngestionService(
                 extractCleanAndChunk(file, pageCount)
             } catch (ex: ScannedPdfException) {
                 val reason = ex.message ?: "PDF sem camada de texto extraível"
+                failVersion(versionId, reason)
+                return IngestionOutcome.Failed(bookId, versionId, reason)
+            } catch (ex: Exception) {
+                // Catch genérico (não `Error`) intencional: não há uma hierarquia de exceção
+                // específica do PDFBox fácil de cobrir aqui, e o objetivo é nunca deixar uma
+                // BookVersion presa em INGESTING nem vazar stack trace cru ao operador (CA7,
+                // spec.md) — qualquer falha de I/O/parsing do PDF a partir daqui cai neste ramo.
+                val reason = "erro ao processar o PDF: ${ex.message ?: ex::class.simpleName}"
                 failVersion(versionId, reason)
                 return IngestionOutcome.Failed(bookId, versionId, reason)
             }
