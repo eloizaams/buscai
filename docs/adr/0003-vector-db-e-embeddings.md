@@ -32,3 +32,15 @@ qualidade em português.
   desenvolvedor, não um caminho quente do usuário).
 - Latência de busca (< 100 ms com ~50k chunks, meta da Fase 4 original) precisa ser validada com
   pgvector + HNSW no hardware real do backend antes de assumir que a meta se mantém.
+
+## Detalhes fixados na implementação (feature de ingestão, `specs/ingestao-pdf/`)
+Registrado aqui pela T12 (`specs/ingestao-pdf/tasks.md`) para não deixar decisões concretas só no
+código:
+- Modelo de embedding fixado como `voyage-3` (não a variante `-lite`), dimensão **1024** —
+  `chunk.embedding vector(1024)` (`V1__book_bookversion_chunk.sql`), constante
+  `EMBEDDING_DIMENSIONS` em `Chunk.kt`. Trocar de modelo/dimensão exige migration nova (o schema
+  fixa a dimensão da coluna) e dispara reindexação de todo o acervo via a chave de gatilho do
+  ADR-0008 (`embeddingModelVersion`).
+- Índice HNSW usa `vector_cosine_ops` (busca por similaridade de cosseno, coerente com "cosine/HNSW"
+  já citado acima) — `idx_chunk_embedding_hnsw` na mesma migration, parâmetros default do pgvector
+  (não ajustados manualmente; revisar se a latência medida em produção não bater com a meta acima).

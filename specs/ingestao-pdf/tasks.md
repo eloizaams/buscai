@@ -136,7 +136,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   teste instrumentado); (c) o resultado persistido (contagem de chunks, `pageCount`) bate com o
   esperado. Documentar no teste os parâmetros de heap usados, para reproduzir depois.
 
-- [ ] **T12 — Atualizar `docs/adr/` e `specs/eval/`**
+- [x] **T12 — Atualizar `docs/adr/` e `specs/eval/`**
   Confirmar que nenhuma decisão tomada durante a implementação (ex.: dimensão do vetor Voyage,
   detalhe do índice HNSW) diverge do que está registrado nos ADRs; se divergir, atualizar o ADR
   correspondente antes de considerar a feature concluída. `specs/eval/golden-set.json` continua
