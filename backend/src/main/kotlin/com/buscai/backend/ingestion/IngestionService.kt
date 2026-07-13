@@ -39,8 +39,9 @@ private class ScannedPdfException(
  * é T8; reindexação com swap atômico de um `Book` já existente é T9. `book_version.book_id` tem
  * uma FK `NOT NULL` para `book.id` (migration V1), então o `Book` é criado (sem versão ativa) já
  * no início do pipeline se ainda não existir; só quando esta versão chega a `READY` é que
- * `Book.activeVersionId` é apontado para ela — e só se o `Book` ainda não tiver uma versão ativa
- * (senão fica para o swap atômico de T9).
+ * `Book.activeVersionId` é apontado para ela — e, se já havia uma versão ativa anterior
+ * (reindexação, T9), o swap atômico troca o ponteiro para a nova versão e remove a versão anterior
+ * e seus chunks na mesma transação curta (ver [completeVersion]).
  *
  * Desenho central (evita esgotar o pool de conexões em livros grandes, ver `plan.md`, seção
  * "Processamento incremental"): nenhuma transação de banco fica aberta durante a chamada de rede
@@ -80,9 +81,12 @@ class IngestionService(
      * valores atuais, devolve [IngestionOutcome.Skipped] sem reprocessar. Se não bate e [reindex]
      * é `false`, devolve [IngestionOutcome.ReindexRequired] sem reprocessar (protege contra
      * reprocessamento acidental caro, já que embeddings são API paga). Se [reindex] é `true`,
-     * segue para o pipeline normal (o swap atômico em si é T9, fora do escopo desta task). Um
-     * `Book` sem versão ativa (nenhuma ingestão anterior chegou a `READY`) não é "já ingerido" —
-     * segue direto para o pipeline normal.
+     * segue para o pipeline normal (T7) criando uma nova `BookVersion`; só quando ela chega a
+     * `READY` é que o swap atômico (T9, ver [completeVersion]) troca `Book.activeVersionId` para a
+     * nova versão e remove a versão anterior e seus chunks — se a nova ingestão falhar em qualquer
+     * ponto do pipeline, a versão ativa anterior nunca é tocada (CA5/CA7, `spec.md`). Um `Book` sem
+     * versão ativa (nenhuma ingestão anterior chegou a `READY`) não é "já ingerido" — segue direto
+     * para o pipeline normal.
      */
     fun ingest(
         bookId: String,
@@ -269,11 +273,14 @@ class IngestionService(
     }
 
     /**
-     * Marca a `BookVersion` como `READY` e, se o `Book` ainda não tiver uma versão ativa, aponta
-     * `activeVersionId` para esta versão (caso "primeira versão" do swap, ver KDoc da classe) —
-     * passo 5 do pipeline (T7), numa única transação curta. Se o `Book` já tiver uma versão ativa
-     * (reindexação de um livro existente), `activeVersionId` não é tocado — isso é o swap atômico
-     * de T9, fora do escopo desta task.
+     * Marca a `BookVersion` como `READY` e aponta `Book.activeVersionId` para esta versão — passo
+     * 5 do pipeline (T7/T9), numa única transação curta, sem I/O de rede (`plan.md`, seção "Swap
+     * atômico"). Se o `Book` já tinha uma versão ativa **diferente** (reindexação, T9), é o swap
+     * atômico em si: troca o ponteiro para a nova versão e remove a versão anterior e todos os
+     * seus chunks ([ChunkRepository.deleteByBookVersionId]) na mesma transação — nunca há uma
+     * janela em que a busca veria um livro parcialmente reindexado, nem em que o livro fica sem
+     * versão ativa (CA5, `spec.md`). Se não havia versão ativa anterior (primeira ingestão do
+     * livro), nada é removido.
      */
     private fun completeVersion(
         bookId: String,
@@ -290,10 +297,14 @@ class IngestionService(
             bookVersionRepository.save(version)
 
             val book = bookRepository.findById(bookId).orElseThrow()
-            if (book.activeVersionId == null) {
-                book.activeVersionId = versionId
-                book.updatedAt = Instant.now()
-                bookRepository.save(book)
+            val oldActiveVersionId = book.activeVersionId
+            book.activeVersionId = versionId
+            book.updatedAt = Instant.now()
+            bookRepository.save(book)
+
+            if (oldActiveVersionId != null && oldActiveVersionId != versionId) {
+                chunkRepository.deleteByBookVersionId(oldActiveVersionId)
+                bookVersionRepository.deleteById(oldActiveVersionId)
             }
         }
     }

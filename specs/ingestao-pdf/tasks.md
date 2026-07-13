@@ -108,7 +108,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   (não chama `EmbeddingClient`, não gasta API paga). Testes: CA4 nos dois sub-casos (skip e
   bloqueio), garantindo zero chamadas ao `EmbeddingClient` fake em ambos.
 
-- [ ] **T9 — IngestionService: reindexação com swap atômico**
+- [x] **T9 — IngestionService: reindexação com swap atômico**
   Com `--reindex`, roda o pipeline de T7 (chunking do livro inteiro + lotes de chunks para
   embedding/persistência) criando uma `BookVersion` nova; só troca `Book.activeVersionId` e
   remove a versão+chunks antigos após a nova terminar `READY`, numa única transação curta (sem

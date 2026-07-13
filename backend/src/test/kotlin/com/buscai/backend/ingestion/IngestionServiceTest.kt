@@ -103,9 +103,22 @@ class IngestionServiceTest {
         val calls = mutableListOf<List<String>>()
         val transactionActiveDuringCall = mutableListOf<Boolean>()
 
+        /**
+         * Quando não nulo, a N-ésima chamada a [embed] (1-indexado, contada a partir do último
+         * [org.junit.jupiter.api.BeforeEach]/reset de [calls]) lança [EmbeddingClientException] em
+         * vez de devolver vetores — usado pelo teste de falha no meio da reindexação (T9,
+         * CA5/CA7) para simular um lote que falha depois que outros lotes da mesma versão nova já
+         * foram persistidos. `null` (padrão) preserva o comportamento determinístico sem falhas
+         * usado pelos demais testes (T7/T8).
+         */
+        var failOnCallNumber: Int? = null
+
         override fun embed(texts: List<String>): List<FloatArray> {
             calls += texts
             transactionActiveDuringCall += TransactionSynchronizationManager.isActualTransactionActive()
+            if (failOnCallNumber == calls.size) {
+                throw EmbeddingClientException("falha simulada de embedding na chamada ${calls.size}")
+            }
             return texts.map { text -> FloatArray(EMBEDDING_DIMENSIONS) { i -> (text.hashCode() % 997) / 997f + i * 1e-6f } }
         }
     }
@@ -138,6 +151,7 @@ class IngestionServiceTest {
     fun resetFakeEmbeddingClient() {
         fakeEmbeddingClient.calls.clear()
         fakeEmbeddingClient.transactionActiveDuringCall.clear()
+        fakeEmbeddingClient.failOnCallNumber = null
     }
 
     @Test
@@ -275,5 +289,115 @@ class IngestionServiceTest {
 
         val version = bookVersionRepository.findById(completed.versionId).orElseThrow()
         assertEquals(BookVersionStatus.READY, version.status, "versao ativa anterior deveria continuar READY")
+    }
+
+    /**
+     * T9, caminho feliz: `--reindex` com um PDF diferente para o mesmo `bookId` faz o swap atômico
+     * — a nova versão vira ativa, e a versão antiga (+ seus chunks) deixa de existir no banco
+     * (ADR-0008, "Reindexação atômica").
+     */
+    @Test
+    fun `reindex com sucesso troca a versao ativa e remove a versao e chunks antigos`() {
+        val firstFile = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+        val first = ingestionService.ingest(bookId = "livro-swap-t9", title = "Livro Swap T9", file = firstFile)
+        val completedFirst = first as? IngestionOutcome.Completed
+        assertNotNull(completedFirst, "esperava IngestionOutcome.Completed na primeira ingestão, obteve: $first")
+        checkNotNull(completedFirst)
+        val oldVersionId = completedFirst.versionId
+
+        // Conteúdo diferente (mesmo esquema do teste de bloqueio T8) => hash diferente => reindex necessário.
+        val differentPageTexts =
+            fixtureBookPageTexts().map { pageText -> "$pageText wextra1 wextra2 wextra3" }
+        val secondFile = PdfFixtures.textPdf(tempDir, differentPageTexts)
+
+        val second =
+            ingestionService.ingest(
+                bookId = "livro-swap-t9",
+                title = "Livro Swap T9",
+                file = secondFile,
+                reindex = true,
+            )
+
+        val completedSecond = second as? IngestionOutcome.Completed
+        assertNotNull(completedSecond, "esperava IngestionOutcome.Completed na reindexação, obteve: $second")
+        checkNotNull(completedSecond)
+
+        val book = bookRepository.findById("livro-swap-t9").orElseThrow()
+        assertEquals(
+            completedSecond.versionId,
+            book.activeVersionId,
+            "apos o swap, a versao ativa deveria ser a nova versao",
+        )
+
+        assertTrue(
+            bookVersionRepository.findById(oldVersionId).isEmpty,
+            "a versao antiga deveria ter sido removida pelo swap atomico",
+        )
+        val oldChunksRemaining = chunkRepository.findAll().count { it.bookVersionId == oldVersionId }
+        assertEquals(0, oldChunksRemaining, "os chunks da versao antiga deveriam ter sido removidos")
+
+        val newVersion = bookVersionRepository.findById(completedSecond.versionId).orElseThrow()
+        assertEquals(BookVersionStatus.READY, newVersion.status)
+        val newChunks = chunkRepository.findAll().filter { it.bookVersionId == completedSecond.versionId }
+        assertEquals(completedSecond.chunkCount, newChunks.size)
+    }
+
+    /**
+     * T9, caminho de falha (teste central da task — CA5/CA7, `spec.md`): o `EmbeddingClient` fake
+     * falha no meio dos lotes da NOVA versão (na 2ª chamada, não na 1ª, para garantir que parte dos
+     * lotes da versão nova já foi persistida antes da falha). A versão ativa (e todos os seus
+     * chunks) precisa continuar sendo a antiga — o swap nunca deve acontecer parcialmente.
+     */
+    @Test
+    fun `falha no meio da reindexacao mantem a versao antiga ativa e intacta`() {
+        val firstFile = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+        val first =
+            ingestionService.ingest(bookId = "livro-falha-reindex-t9", title = "Livro Falha Reindex T9", file = firstFile)
+        val completedFirst = first as? IngestionOutcome.Completed
+        assertNotNull(completedFirst, "esperava IngestionOutcome.Completed na primeira ingestão, obteve: $first")
+        checkNotNull(completedFirst)
+        val oldVersionId = completedFirst.versionId
+        val oldChunkCount = completedFirst.chunkCount
+
+        // Reseta a contagem de chamadas para que "2ª chamada" se refira à reindexação a seguir,
+        // não à primeira ingestão já concluída acima.
+        fakeEmbeddingClient.calls.clear()
+        fakeEmbeddingClient.transactionActiveDuringCall.clear()
+        fakeEmbeddingClient.failOnCallNumber = 2
+
+        val differentPageTexts =
+            fixtureBookPageTexts().map { pageText -> "$pageText wextra1 wextra2 wextra3" }
+        val secondFile = PdfFixtures.textPdf(tempDir, differentPageTexts)
+
+        val second =
+            ingestionService.ingest(
+                bookId = "livro-falha-reindex-t9",
+                title = "Livro Falha Reindex T9",
+                file = secondFile,
+                reindex = true,
+            )
+
+        val failed = second as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $second")
+        checkNotNull(failed)
+        assertTrue(
+            fakeEmbeddingClient.calls.size >= 2,
+            "esperava pelo menos 2 chamadas ao EmbeddingClient antes da falha simulada, teve ${fakeEmbeddingClient.calls.size}",
+        )
+
+        val book = bookRepository.findById("livro-falha-reindex-t9").orElseThrow()
+        assertEquals(
+            oldVersionId,
+            book.activeVersionId,
+            "versao ativa nao deveria mudar quando a reindexacao falha no meio (CA5, CA7)",
+        )
+
+        val oldVersion = bookVersionRepository.findById(oldVersionId).orElseThrow()
+        assertEquals(BookVersionStatus.READY, oldVersion.status, "versao antiga deveria continuar READY")
+        val oldChunks = chunkRepository.findAll().filter { it.bookVersionId == oldVersionId }
+        assertEquals(oldChunkCount, oldChunks.size, "chunks da versao antiga deveriam continuar intactos")
+
+        val failedVersion = bookVersionRepository.findById(checkNotNull(failed.versionId)).orElseThrow()
+        assertEquals(BookVersionStatus.FAILED, failedVersion.status, "a nova versao deveria ter ficado FAILED")
     }
 }
