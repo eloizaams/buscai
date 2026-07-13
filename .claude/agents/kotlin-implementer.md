@@ -18,6 +18,18 @@ Regras:
    pare e reporte — não expanda o escopo sozinho.
 6. Nunca coloque API keys, tokens ou URLs de produção direto no código — use BuildConfig/variáveis
    de ambiente conforme já configurado no projeto.
+7. Método que orquestra vários passos sequenciais e todos precisam do mesmo tratamento de falha
+   (ex.: um pipeline com N chamadas que podem lançar exceção, cada uma exigindo a mesma reação de
+   erro): use um guard único (um `try/catch` envolvendo o corpo inteiro) desde a primeira versão,
+   não um `try/catch` pontual por passo. Corrigir isso depois de implementado já custou 3 rodadas
+   de code-review no pipeline de ingestão (`IngestionService.ingest`) — cada rodada de patch pontual
+   deixava mais um passo desprotegido.
+8. Ao testar um `Repository` do Spring Data (proxy dinâmico), não use `Mockito.spy` sobre ele para
+   interceptar/forçar falha — o spy sobre o proxy corrompe o estado global do Mockito
+   (`ThreadSafeMockingProgress`) e quebra outros testes da mesma classe. Prefira um decorator por
+   delegação de interface Kotlin (`by`) que encaminha para o repositório real e injeta a falha
+   quando precisar.
 
 Ao terminar, resuma: o que foi alterado, quais testes rodaram e o resultado, e qual item do
-tasks.md deve ser marcado como concluído.
+tasks.md deve ser marcado como concluído — e marque esse item você mesmo no `tasks.md` (`- [ ]` →
+`- [x]`) antes de finalizar, não deixe para o orquestrador lembrar.
