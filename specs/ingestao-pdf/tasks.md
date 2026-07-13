@@ -117,7 +117,7 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   versão antiga, que continua íntegra e servível (CA5, CA7) — mesmo com parte dos lotes da versão
   nova já persistidos no banco (são órfãos inofensivos, não visíveis para a busca).
 
-- [ ] **T10 — IngestCommand: CLI e mensagens ao operador**
+- [x] **T10 — IngestCommand: CLI e mensagens ao operador**
   `CommandLineRunner` sob profile/flag dedicado, parseia `--book-id`, `--file`, `--reindex`
   (`--title` opcional). Formata as saídas de `IngestionOutcome` em mensagens claras no console
   (CA3, CA4, CA6, CA7), incluindo progresso incremental durante o processamento (CA6 — ex.: log a

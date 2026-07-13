@@ -249,6 +249,14 @@ class IngestionService(
                 chunkRepository.saveAll(chunks)
             }
             persisted += batch.size
+            // Progresso incremental ao operador (CA6, `spec.md`) — IngestCommand (T10) não recebe
+            // callback dedicado do IngestionService; este log já aparece no console via Logback.
+            logger.info(
+                "bookVersion={}: {} de {} chunks processados (embedding + persistência)",
+                versionId,
+                persisted,
+                drafts.size,
+            )
         }
         return persisted
     }
