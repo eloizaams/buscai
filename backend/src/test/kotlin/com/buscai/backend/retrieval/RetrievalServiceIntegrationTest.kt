@@ -273,6 +273,46 @@ class RetrievalServiceIntegrationTest {
     }
 
     @Test
+    fun `AllBooks exclui livro com embeddingModelVersion divergente, mas Books daquele bookId ainda encontra`() {
+        val suffix = UUID.randomUUID()
+        val livroModeloAtual = persistBook("livro-modelo-atual-$suffix", "Livro Modelo Atual")
+        val versaoModeloAtual =
+            persistVersion(livroModeloAtual.id, BookVersionStatus.READY, embeddingModel = "voyage-3", embeddingModelVersion = "v1")
+        activate(livroModeloAtual, versaoModeloAtual.id)
+        persistChunk(versaoModeloAtual.id, "Trecho do livro com o modelo de embedding atual.")
+
+        // embeddingModelVersion diferente do VoyageProperties atual ("v1", ver application.yml) —
+        // simula um livro reindexado com modelo novo enquanto outro ainda não foi (plan.md).
+        val livroModeloDivergente = persistBook("livro-modelo-divergente-$suffix", "Livro Modelo Divergente")
+        val versaoModeloDivergente =
+            persistVersion(
+                livroModeloDivergente.id,
+                BookVersionStatus.READY,
+                embeddingModel = "voyage-3",
+                embeddingModelVersion = "v2",
+            )
+        activate(livroModeloDivergente, versaoModeloDivergente.id)
+        persistChunk(versaoModeloDivergente.id, "Trecho do livro com modelo de embedding divergente.")
+
+        val resultAllBooks = retrievalService.search("trecho", RetrievalScope.AllBooks)
+        require(resultAllBooks is RetrievalResult.Found)
+        val bookIdsEncontrados = resultAllBooks.chunks.map { it.bookId }.toSet()
+        assertTrue(bookIdsEncontrados.contains(livroModeloAtual.id), "livro com modelo atual deveria aparecer: $bookIdsEncontrados")
+        assertTrue(
+            !bookIdsEncontrados.contains(livroModeloDivergente.id),
+            "livro com embeddingModelVersion divergente não deveria aparecer em AllBooks: $bookIdsEncontrados",
+        )
+
+        // O filtro de versão de embedding só se aplica a AllBooks (evita misturar espaços
+        // vetoriais incompatíveis na busca sobre o acervo inteiro) — Books(bookId) continua
+        // encontrando o mesmo livro normalmente, já que o chamador pediu por ele explicitamente.
+        val resultBooks = retrievalService.search("trecho", RetrievalScope.Books(setOf(livroModeloDivergente.id)))
+        require(resultBooks is RetrievalResult.Found)
+        assertTrue(resultBooks.chunks.isNotEmpty(), "Books(bookId) deveria encontrar o livro mesmo com modelo divergente")
+        assertTrue(resultBooks.chunks.all { it.bookId == livroModeloDivergente.id })
+    }
+
+    @Test
     fun `Books de bookId inexistente devolve NoRelevantContext sem lancar excecao`() {
         val result = retrievalService.search("qualquer pergunta", RetrievalScope.Books(setOf("livro-que-nao-existe-${UUID.randomUUID()}")))
 

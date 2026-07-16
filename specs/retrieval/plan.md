@@ -102,6 +102,15 @@ critério de aceite desta feature).
     outro não). Conjunto vazio (nenhum livro pronto) é um resultado válido, não erro.
   - Conjunto vazio de versões elegíveis pula a query híbrida e devolve `NoRelevantContext`
     diretamente — não é necessário perguntar ao banco.
+- **Falha de I/O (`EmbeddingClient`/`HybridSearchDao`) não vira um caso de `RetrievalResult`
+  (decisão explícita, revisada na T4):** ao contrário de `IngestionOutcome.Failed`, uma falha na
+  chamada à Voyage (`EmbeddingClientException`, já com mensagem clara) ou ao Postgres
+  (`DataAccessException`) propaga crua para fora de `RetrievalService.search` — não é um caso
+  esquecido. `RetrievalService` ainda não tem consumidor real (a geração, Fase 5, não foi
+  especificada); decidir como reagir a essa falha (retry? mensagem ao usuário final? fallback?)
+  pertence à spec de quem consome, não a esta. O chamador de hoje (`RetrievalDebugCommand`, T7)
+  pode capturar localmente para uma mensagem de console, sem precisar de um terceiro caso em
+  `RetrievalResult`. Revisitar se/quando a Fase 5 precisar de um contrato diferente.
 - **`HybridSearchDao.search`:** dado o vetor da query, o texto da query e o conjunto de
   `bookVersionId` elegíveis, roda internamente dois ramos e funde por RRF **numa única query
   SQL nativa** (ADR-0003):

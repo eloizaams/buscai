@@ -88,30 +88,34 @@ class RetrievalService(
      * `AllBooks`: `activeVersionId` de todo `Book` com versão ativa, filtrado às que estão `READY`
      * **e** cujo `embeddingModel`/`embeddingModelVersion` batem com os configurados atualmente em
      * [VoyageProperties] — evita misturar espaços vetoriais incompatíveis (`plan.md`).
+     *
+     * Ambos os ramos usam `findAllById` (uma query `IN` por lote) em vez de `findById` num loop —
+     * evita 1+N queries proporcional ao tamanho do conjunto (acervo inteiro em `AllBooks`, CA8
+     * mira <100ms sobre ~50 mil chunks, ver `code-reviewer` da T4).
      */
     private fun resolveEligibleVersions(scope: RetrievalScope): Map<UUID, Book> =
         when (scope) {
             is RetrievalScope.Books -> {
-                scope.bookIds
-                    .mapNotNull { bookId ->
-                        val book = bookRepository.findById(bookId).orElse(null)
-                        val activeVersionId = book?.activeVersionId
-                        val activeVersion = activeVersionId?.let { bookVersionRepository.findById(it).orElse(null) }
-                        if (book != null && activeVersion != null && activeVersion.status == BookVersionStatus.READY) {
-                            activeVersion.id to book
-                        } else {
-                            null
-                        }
-                    }.toMap()
+                val booksById = bookRepository.findAllById(scope.bookIds).associateBy { it.id }
+                val activeVersionIdToBook =
+                    booksById.values
+                        .mapNotNull { book -> book.activeVersionId?.let { it to book } }
+                        .toMap()
+                bookVersionRepository
+                    .findAllById(activeVersionIdToBook.keys)
+                    .filter { version -> version.status == BookVersionStatus.READY }
+                    .associate { version -> version.id to activeVersionIdToBook.getValue(version.id) }
             }
             RetrievalScope.AllBooks -> {
-                bookRepository
-                    .findAll()
-                    .mapNotNull { book ->
-                        val activeVersionId = book.activeVersionId ?: return@mapNotNull null
-                        val version = bookVersionRepository.findById(activeVersionId).orElse(null) ?: return@mapNotNull null
-                        if (isEligible(version)) version.id to book else null
-                    }.toMap()
+                val activeVersionIdToBook =
+                    bookRepository
+                        .findAll()
+                        .mapNotNull { book -> book.activeVersionId?.let { it to book } }
+                        .toMap()
+                bookVersionRepository
+                    .findAllById(activeVersionIdToBook.keys)
+                    .filter { version -> isEligible(version) }
+                    .associate { version -> version.id to activeVersionIdToBook.getValue(version.id) }
             }
         }
 
