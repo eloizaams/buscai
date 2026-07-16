@@ -1,4 +1,4 @@
-package com.buscai.backend.ingestion.embedding
+package com.buscai.backend.embedding
 
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -59,9 +59,10 @@ class VoyageEmbeddingClientTest {
             .andExpect(jsonPath("$.model").value("voyage-3"))
             .andExpect(jsonPath("$.input[0]").value("primeiro texto"))
             .andExpect(jsonPath("$.input[1]").value("segundo texto"))
+            .andExpect(jsonPath("$.input_type").value("document"))
             .andRespond(withSuccess(responseBody, MediaType.APPLICATION_JSON))
 
-        val result = client.embed(listOf("primeiro texto", "segundo texto"))
+        val result = client.embed(listOf("primeiro texto", "segundo texto"), EmbeddingInputType.DOCUMENT)
 
         assertEquals(2, result.size)
         assertTrue(vectorA.contentEquals(result[0]))
@@ -73,7 +74,7 @@ class VoyageEmbeddingClientTest {
     fun `embed com lista vazia devolve lista vazia sem chamar a API`() {
         val (client, server) = clientWithMockServer()
 
-        val result = client.embed(emptyList())
+        val result = client.embed(emptyList(), EmbeddingInputType.DOCUMENT)
 
         assertEquals(emptyList<FloatArray>(), result)
         server.verify()
@@ -90,7 +91,7 @@ class VoyageEmbeddingClientTest {
                     .contentType(MediaType.APPLICATION_JSON),
             )
 
-        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto")) }
+        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto"), EmbeddingInputType.DOCUMENT) }
 
         assertTrue(ex.message!!.contains("401"), "mensagem era: ${ex.message}")
         assertTrue(ex.message!!.contains("Provided API key is invalid"), "mensagem era: ${ex.message}")
@@ -103,7 +104,7 @@ class VoyageEmbeddingClientTest {
             .expect(requestTo(VOYAGE_URL))
             .andRespond { throw SocketTimeoutException("Read timed out") }
 
-        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto")) }
+        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto"), EmbeddingInputType.DOCUMENT) }
 
         assertTrue(ex.message!!.contains("Voyage", ignoreCase = true), "mensagem era: ${ex.message}")
         assertTrue(ex.cause is ResourceAccessException, "causa era: ${ex.cause}")
@@ -117,7 +118,10 @@ class VoyageEmbeddingClientTest {
             .expect(requestTo(VOYAGE_URL))
             .andRespond(withSuccess(responseBody, MediaType.APPLICATION_JSON))
 
-        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto 1", "texto 2")) }
+        val ex =
+            assertFailsWith<EmbeddingClientException> {
+                client.embed(listOf("texto 1", "texto 2"), EmbeddingInputType.DOCUMENT)
+            }
 
         assertTrue(ex.message!!.contains("1"), "mensagem era: ${ex.message}")
         assertTrue(ex.message!!.contains("2"), "mensagem era: ${ex.message}")
@@ -133,7 +137,7 @@ class VoyageEmbeddingClientTest {
             .expect(requestTo(VOYAGE_URL))
             .andRespond(withSuccess(responseBody, MediaType.APPLICATION_JSON))
 
-        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto")) }
+        val ex = assertFailsWith<EmbeddingClientException> { client.embed(listOf("texto"), EmbeddingInputType.DOCUMENT) }
 
         assertTrue(ex.message!!.contains("8"), "mensagem era: ${ex.message}")
         assertTrue(ex.message!!.contains("$EMBEDDING_DIMENSIONS"), "mensagem era: ${ex.message}")

@@ -1,7 +1,8 @@
-package com.buscai.backend.ingestion.embedding
+package com.buscai.backend.embedding
 
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
@@ -29,7 +30,10 @@ class VoyageEmbeddingClient(
     @Qualifier("voyageRestClient") private val restClient: RestClient,
     private val properties: VoyageProperties,
 ) : EmbeddingClient {
-    override fun embed(texts: List<String>): List<FloatArray> {
+    override fun embed(
+        texts: List<String>,
+        inputType: EmbeddingInputType,
+    ): List<FloatArray> {
         if (texts.isEmpty()) return emptyList()
 
         val response =
@@ -38,8 +42,13 @@ class VoyageEmbeddingClient(
                     .post()
                     .uri(VOYAGE_EMBEDDINGS_PATH)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(VoyageEmbeddingRequest(input = texts, model = properties.model))
-                    .retrieve()
+                    .body(
+                        VoyageEmbeddingRequest(
+                            input = texts,
+                            model = properties.model,
+                            inputType = inputType.name.lowercase(),
+                        ),
+                    ).retrieve()
                     .body(VoyageEmbeddingResponse::class.java)
             } catch (ex: RestClientResponseException) {
                 throw EmbeddingClientException(
@@ -81,10 +90,15 @@ class VoyageEmbeddingClient(
     }
 }
 
-/** Corpo de request da Voyage AI (`POST /v1/embeddings`) — nomes de campo exigidos pela API. */
+/**
+ * Corpo de request da Voyage AI (`POST /v1/embeddings`) — nomes de campo exigidos pela API.
+ * [inputType] é serializado como `input_type` — valor `"document"`/`"query"` confirmado em
+ * `docs.voyageai.com/docs/embeddings` (ADR-0010).
+ */
 internal data class VoyageEmbeddingRequest(
     val input: List<String>,
     val model: String,
+    @JsonProperty("input_type") val inputType: String,
 )
 
 /** Corpo de resposta da Voyage AI — só os campos usados aqui; extras (ex. `usage`, `object`) são ignorados. */

@@ -4,7 +4,7 @@ Ordem sequencial — cada item depende do(s) anterior(es) e cabe numa sessão do
 `kotlin-implementer`. Todos em `backend/`. Rodar `./gradlew ktlintFormat` e os testes do módulo ao
 final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
 
-- [ ] **T1 — ADR-0010: pacote `embedding/` compartilhado + `input_type`**
+- [x] **T1 — ADR-0010: pacote `embedding/` compartilhado + `input_type`**
   Mover `EmbeddingClient`, `EmbeddingClientException`, `VoyageEmbeddingClient`,
   `VoyageClientConfig`, `VoyageProperties` de `ingestion.embedding` para o pacote novo
   `com.buscai.backend.embedding` (move mecânico — imports/package, sem mudar lógica existente).

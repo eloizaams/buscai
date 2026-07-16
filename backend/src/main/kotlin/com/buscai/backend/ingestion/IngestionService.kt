@@ -7,14 +7,15 @@ import com.buscai.backend.catalog.BookVersionRepository
 import com.buscai.backend.catalog.BookVersionStatus
 import com.buscai.backend.catalog.Chunk
 import com.buscai.backend.catalog.ChunkRepository
+import com.buscai.backend.embedding.EmbeddingClient
+import com.buscai.backend.embedding.EmbeddingClientException
+import com.buscai.backend.embedding.EmbeddingInputType
+import com.buscai.backend.embedding.VoyageProperties
 import com.buscai.backend.ingestion.chunking.ChunkDraft
 import com.buscai.backend.ingestion.chunking.ChunkValidationResult
 import com.buscai.backend.ingestion.chunking.ChunkValidator
 import com.buscai.backend.ingestion.chunking.Chunker
 import com.buscai.backend.ingestion.chunking.TextCleaner
-import com.buscai.backend.ingestion.embedding.EmbeddingClient
-import com.buscai.backend.ingestion.embedding.EmbeddingClientException
-import com.buscai.backend.ingestion.embedding.VoyageProperties
 import com.buscai.backend.ingestion.pdf.PdfTextExtractor
 import com.buscai.backend.ingestion.pdf.ScannedPdfDetector
 import org.slf4j.LoggerFactory
@@ -292,7 +293,7 @@ class IngestionService(
     ): Int {
         var persisted = 0
         drafts.chunked(ingestionProperties.chunkEmbeddingBatchSize).forEach { batch ->
-            val vectors = embeddingClient.embed(batch.map { it.text })
+            val vectors = embeddingClient.embed(batch.map { it.text }, EmbeddingInputType.DOCUMENT)
             transactionTemplate.executeWithoutResult {
                 val chunks =
                     batch.mapIndexed { index, draft ->
