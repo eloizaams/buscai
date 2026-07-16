@@ -43,12 +43,13 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   passado nunca aparece no resultado (base de CA2/CA6); (c) `cosineSimilarity` devolvida bate com
   o cálculo manual esperado para o par de vetores de fixture.
 
-- [ ] **T4 — `RetrievalService`: resolução de escopo + embedding da query + busca**
-  `RetrievalScope` (sealed: `AllBooks`/`SingleBook(bookId)`), `RetrievedChunk`, `RetrievalResult`
-  (sealed: `Found`/`NoRelevantContext` — `NoRelevantContext` só com o caminho "nenhuma versão
-  elegível" por enquanto, o caminho CA7 completo é T6). `RetrievalService.search(query: String,
+- [x] **T4 — `RetrievalService`: resolução de escopo + embedding da query + busca**
+  `RetrievalScope` (sealed: `AllBooks`/`Books(bookIds: Set<String>)`, não vazio), `RetrievedChunk`,
+  `RetrievalResult` (sealed: `Found`/`NoRelevantContext` — `NoRelevantContext` só com o caminho
+  "nenhuma versão elegível" por enquanto, o caminho CA7 completo é T6). `RetrievalService.search(query: String,
   scope: RetrievalScope): RetrievalResult`: resolve o conjunto de `bookVersionId` elegíveis
-  (`SingleBook` → `activeVersionId` daquele `Book` se `READY`, senão vazio; `AllBooks` →
+  (`Books(bookIds)` → `activeVersionId` de cada `Book` do conjunto que existir e estiver `READY`
+  — `bookId` inexistente/sem versão `READY` não contribui, não é erro; `AllBooks` →
   `activeVersionId` de todo `Book` não nulo, filtrado por `embeddingModel`/`embeddingModelVersion`
   iguais aos de `VoyageProperties` atual — `plan.md`), embedda a query
   (`EmbeddingClient.embed(listOf(query), EmbeddingInputType.QUERY)` — T1), chama
@@ -57,10 +58,11 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   `catalog`), sem dedup/orçamento ainda (T5) nem o sinal de "sem contexto" completo (T6). Conjunto
   de versões elegíveis vazio pula a chamada ao `HybridSearchDao` e devolve `NoRelevantContext`
   direto. Teste via Testcontainers (fixture pequena com 2+ livros, `EmbeddingClient` fake
-  determinístico): escopo `SingleBook` nunca traz chunk de outro livro (CA2); um livro com versão
-  `INGESTING`/`FAILED` mas sem `activeVersionId` `READY` não aparece em `AllBooks` nem é
-  encontrado em `SingleBook` daquele `bookId` (CA6); escopo `AllBooks` com todos os livros na
-  mesma versão de embedding não filtra nada indevidamente.
+  determinístico): escopo `Books(setOf(bookId))` (subconjunto de tamanho 1) nunca traz chunk de
+  outro livro (CA2); escopo `Books` com 2 dos 3 livros da fixture traz chunks dos dois e nunca do
+  terceiro; um livro com versão `INGESTING`/`FAILED` mas sem `activeVersionId` `READY` não aparece
+  em `AllBooks` nem é encontrado em `Books` contendo aquele `bookId`; escopo `AllBooks` com todos
+  os livros na mesma versão de embedding não filtra nada indevidamente.
 
 - [ ] **T5 — `ContextAssembler`: dedup de vizinhos + orçamento de tokens**
   `ContextAssembler.assemble(rows: List<HybridSearchRow>, tokenBudget: Int):
@@ -90,7 +92,8 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   `neighbor-dedup-min-overlap-chars`, defaults de `plan.md`) adicionado a `application.yml`;
   conectar os valores literais deixados em T3/T5/T6 a esta config. `RetrievalDebugCommand`
   (`CommandLineRunner` sob profile/flag dedicado, mesmo padrão de `IngestCommand`): parseia
-  `--query` (obrigatório) e `--book` (opcional, define `RetrievalScope`), roda
+  `--query` (obrigatório) e `--books` (opcional, lista separada por vírgula — define
+  `RetrievalScope.Books`; ausente = `AllBooks`), roda
   `RetrievalService.search` e imprime cada `RetrievedChunk` (bookId, página, capítulo, score,
   trecho do texto) ou a mensagem de "sem contexto relevante" no console. Teste: formatação de
   cada variante de `RetrievalResult` produz a saída esperada (teste unitário, sem subir o Spring

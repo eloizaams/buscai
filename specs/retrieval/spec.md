@@ -12,7 +12,7 @@ resposta final via LLM, que é uma spec separada (Fase 5).
 ## Ator
 
 - **Consumidor primário: a feature de geração (Fase 5, ainda não especificada).** Ela envia uma
-  pergunta (e um escopo — todos os livros ou um livro específico) e recebe de volta os trechos
+  pergunta (e um escopo — todos os livros ou um subconjunto de livros) e recebe de volta os trechos
   mais relevantes para montar o contexto do prompt de geração.
 - **Consumidor secundário, hoje: o desenvolvedor/operador do backend.** Enquanto a geração não
   existe, o operador precisa conseguir rodar a busca isoladamente durante o desenvolvimento e
@@ -27,7 +27,10 @@ serviço Kotlin usada em teste/futura geração) é decisão técnica do `plan.m
 1. **Buscar trechos relevantes** dada uma pergunta em linguagem natural, recebendo os top-k
    trechos ordenados por relevância — cada um com o texto, o livro de origem, a página e (quando
    detectado na ingestão) o capítulo, suficiente para uma citação futura (livro + página).
-2. **Restringir a busca a um livro específico** (escopo) em vez de buscar no acervo inteiro.
+2. **Restringir a busca a um subconjunto de livros** (escopo — um ou mais `bookId`s) em vez de
+   buscar no acervo inteiro. O caso de um livro só é o subconjunto de tamanho 1, não um modo à
+   parte. Motivação além da Fase 5: a seleção de livros pelo usuário final no app (Fase 6,
+   fora de escopo aqui) vai consumir exatamente este contrato, sem retrabalho no retrieval.
 3. **Encontrar termos exatos e nomes próprios** que uma busca puramente semântica pode não
    colocar no topo (busca híbrida léxica + vetorial, recomendada em ADR-0003).
 4. **Receber um conjunto de trechos pronto para consumo pela geração**: sem trechos vizinhos
@@ -45,7 +48,8 @@ serviço Kotlin usada em teste/futura geração) é decisão técnica do `plan.m
 - **CA1**: dada uma pergunta cuja resposta está claramente em um livro ingerido, os trechos
   corretos aparecem entre os resultados retornados (validável contra `expected_sources` do
   golden set).
-- **CA2**: buscar com escopo restrito a um livro específico nunca retorna trechos de outro livro.
+- **CA2**: buscar com escopo restrito a um subconjunto de livros nunca retorna trechos de livros
+  fora desse subconjunto (inclusive no caso de subconjunto de tamanho 1).
 - **CA3**: buscar um termo exato ou nome próprio presente literalmente no texto de algum chunk
   retorna esse chunk mesmo em casos onde a similaridade puramente semântica não o colocaria entre
   os primeiros — evidência de que a fusão léxica+vetorial está funcionando, não só a vetorial.
@@ -69,7 +73,9 @@ serviço Kotlin usada em teste/futura geração) é decisão técnica do `plan.m
 - Re-ranking via cross-encoder ou LLM sobre os candidatos (v2, adiado no planejamento original).
 - Query rewriting multi-turno usando histórico de conversa — pertence à geração (Fase 5), que é
   quem tem acesso ao histórico (ADR-0007); esta spec recebe sempre uma pergunta já "final".
-- UI de citações clicáveis ou seletor de escopo no app Android (Fase 6).
+- UI de citações clicáveis ou seletor de livros no app Android, e o endpoint de listagem do
+  acervo (`GET /books`) que essa UI vai consumir (Fase 6) — esta spec só garante que o contrato
+  de escopo já aceita o subconjunto que a UI enviará.
 - Decidir se a busca é exposta como endpoint HTTP público, endpoint interno, ou só como serviço
   consumido em processo pela geração — decisão técnica do `plan.md`.
 - OCR ou qualquer tratamento de PDF — já coberto (ou explicitamente fora de escopo) pela feature

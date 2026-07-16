@@ -28,7 +28,7 @@ backend/src/main/kotlin/com/buscai/backend/
     RetrievalProperties.kt          — binding de buscai.retrieval.*
     RetrievalResult.kt              — sealed class: Found(chunks) / NoRelevantContext
     RetrievedChunk.kt               — chunkId, bookId, bookTitle, page, chapter, text, score
-    RetrievalScope.kt               — sealed class: AllBooks / SingleBook(bookId)
+    RetrievalScope.kt               — sealed class: AllBooks / Books(bookIds: Set<String>, não vazio)
     search/
       HybridSearchDao.kt            — query nativa (tsvector + pgvector + fusão RRF numa query só)
       HybridSearchRow.kt            — projeção crua da query (chunkId, cosineSimilarity, rrfScore)
@@ -52,7 +52,8 @@ dedicado (`@Profile("retrieval-debug")`), espelhando exatamente o padrão de `In
 `SPRING_PROFILES_ACTIVE`, não argumento posicional):
 
 ```
-SPRING_PROFILES_ACTIVE=retrieval-debug ./gradlew bootRun --args="--query='qual o nome do protagonista' --book=dom-casmurro"
+SPRING_PROFILES_ACTIVE=retrieval-debug ./gradlew bootRun --args="--query='qual o nome do protagonista' --books=dom-casmurro"
+SPRING_PROFILES_ACTIVE=retrieval-debug ./gradlew bootRun --args="--query='qual o nome do protagonista' --books=dom-casmurro,memorias-postumas"
 SPRING_PROFILES_ACTIVE=retrieval-debug ./gradlew bootRun --args="--query='qual o nome do protagonista'"   # todos os livros
 ```
 
@@ -87,8 +88,11 @@ critério de aceite desta feature).
   `RetrievalResult`.
 - **Resolução de escopo → versões ativas buscáveis (CA2/CA6):** antes de chamar
   `HybridSearchDao`, `RetrievalService` resolve o conjunto de `BookVersion.id` elegíveis:
-  - `RetrievalScope.SingleBook(bookId)`: só o `activeVersionId` daquele `Book`, se existir e
-    estiver `READY`; senão, conjunto vazio (busca não encontra nada — não é erro, ver CA7).
+  - `RetrievalScope.Books(bookIds)` (`bookIds` não vazio — `init { require(...) }`; "nenhum
+    filtro" se expressa com `AllBooks`, nunca com conjunto vazio): o `activeVersionId` de cada
+    `Book` listado que existir e estiver `READY`. Um `bookId` inexistente ou sem versão `READY`
+    simplesmente não contribui versão (não é erro); se nenhum contribuir, conjunto vazio (busca
+    não encontra nada — ver CA7).
   - `RetrievalScope.AllBooks`: `activeVersionId` de todo `Book` com `activeVersionId != null`,
     **filtrado** por `embeddingModel`/`embeddingModelVersion` iguais aos configurados em
     `VoyageProperties` atual (premissa explícita, apontada pelo `android-architect`: buscar no
@@ -131,7 +135,7 @@ critério de aceite desta feature).
 
 | Tipo | Campos-chave | Observação |
 |---|---|---|
-| `RetrievalScope` (sealed) | `AllBooks` / `SingleBook(bookId: String)` | entrada de `RetrievalService.search` |
+| `RetrievalScope` (sealed) | `AllBooks` / `Books(bookIds: Set<String>)` (não vazio) | entrada de `RetrievalService.search`; contrato já dimensionado para a seleção de livros pelo usuário (Fase 6) |
 | `HybridSearchRow` | `chunkId`, `bookVersionId`, `page`, `chapter`, `text`, `tokenCount`, `cosineSimilarity`, `rrfScore` | projeção crua de `HybridSearchDao`, não persistida |
 | `RetrievedChunk` | `chunkId`, `bookId`, `bookTitle`, `page`, `chapter`, `text`, `score` | saída final, formato de citação (livro + página) |
 | `RetrievalResult` (sealed) | `Found(chunks: List<RetrievedChunk>)` / `NoRelevantContext` | devolvido por `RetrievalService.search` |
