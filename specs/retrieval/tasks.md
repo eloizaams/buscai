@@ -25,7 +25,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   e confirmar, por query nativa, que `text_search @@ plainto_tsquery('portuguese', '<termo
   presente no texto>')` retorna a linha (e um termo ausente não retorna).
 
-- [ ] **T3 — `HybridSearchDao`: ramo vetorial + ramo léxico + fusão RRF**
+- [x] **T3 — `HybridSearchDao`: ramo vetorial + ramo léxico + fusão RRF**
   Query SQL nativa única (`plan.md`, seção "Contratos entre camadas"): top-N vetorial
   (`embedding <=> :queryVector`, índice HNSW) + top-N léxico (`ts_rank` sobre `text_search`,
   índice GIN de T2), ambos restritos a um conjunto de `bookVersionId` recebido como parâmetro,
