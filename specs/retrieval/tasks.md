@@ -17,7 +17,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   (rede de segurança); teste novo/atualizado do `VoyageEmbeddingClient` confirma que o corpo do
   request inclui `"input_type": "document"` quando chamado com `EmbeddingInputType.DOCUMENT`.
 
-- [ ] **T2 — Migration V2: coluna de full-text search**
+- [x] **T2 — Migration V2: coluna de full-text search**
   `V2__chunk_text_search.sql`: `ALTER TABLE chunk ADD COLUMN text_search tsvector GENERATED
   ALWAYS AS (to_tsvector('portuguese', text)) STORED;` + `CREATE INDEX idx_chunk_text_search_gin
   ON chunk USING gin (text_search);`. Não mapear a coluna em `Chunk.kt` (`catalog`) — só existe
