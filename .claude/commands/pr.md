@@ -5,7 +5,10 @@ description: Passo final da implementação — revisa a branch inteira, faz pus
 Rode ao concluir a última task da implementação (todos os itens do `tasks.md` commitados via
 `/commit`).
 
-1. `git diff main...HEAD` — se a branch não tem commits à frente da `main`, diga isso e pare.
+1. `git fetch origin main` primeiro — o `main` local pode estar desatualizado (ex.: depois que um
+   PR anterior já mergeou parte destes commits e o remoto avançou sem que o local desse `pull`).
+   Depois, `git diff origin/main...HEAD` (não `main` local). Se a branch não tem commits à frente
+   de `origin/main`, diga isso e pare — pode ser que a feature já esteja mergeada.
 2. Delegue ao subagent `code-reviewer` a revisão do **diff completo da branch** (não só o último
    commit). Ele já lê `CLAUDE.md`, `constitution.md` e `docs/adr/` por conta própria.
 3. Tratamento do parecer:
