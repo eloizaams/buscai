@@ -3,6 +3,14 @@
 ## Status
 Aceito — 2026-07-12
 
+> **Nota (2026-07-16, especificação da feature de retrieval):** o item 3 da decisão original
+> atribuía dedup de chunks vizinhos e orçamento de tokens ao passo de geração. A especificação de
+> `specs/retrieval/` (revisão do `android-architect`) desloca essa responsabilidade para o
+> `RetrievalService` — é propriedade do *conjunto recuperado*, testável isoladamente contra o
+> golden set, e reutilizável antes mesmo de a geração existir. A geração passa a **consumir** um
+> conjunto de trechos já deduplicado e dentro do orçamento, não a montá-lo. Texto original mantido
+> abaixo para histórico; o item 3 deve ser lido à luz desta nota.
+
 ## Contexto
 O planejamento original já recomendava nunca embutir a API key da Claude no APK, exigindo um
 proxy backend fino. Com o [ADR-0001](0001-arquitetura-geral-backend-completo.md), esse backend já
