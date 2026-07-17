@@ -101,9 +101,17 @@ Usar o **spec-kit** (GitHub) integrado ao Claude Code, ou estrutura manual em `s
 
 ---
 
-## Fase 6 — App Android
+## Fase 6 — Cliente (web fino primeiro, app Android adiado)
 
-**Arquitetura:** MVVM + camadas limpas, Hilt, Coroutines/Flow. Módulos: `:app`, `:core:data`, `:core:domain`, `:feature:library`, `:feature:chat`, `:ingestion`, `:rag`.
+> **Revisto em 2026-07-17** — [ADR-0011](adr/0011-cliente-web-fino-primeiro-android-adiado.md):
+> o primeiro cliente construído passa a ser um **web app fino** (HTML/CSS/JS puro, sem
+> framework/build step, diretório `web/`), não o app Android. `android/` fica como scaffold
+> pausado — a seção abaixo (arquitetura MVVM/Compose, módulos, telas) permanece como referência
+> para quando o app Android for retomado, mas não é o próximo trabalho da Fase 6. A spec do
+> cliente web nasce via `/spec-feature` quando priorizada, depois do backend ter o endpoint de
+> geração/streaming (Fase 5).
+
+**Arquitetura (app Android, adiado):** MVVM + camadas limpas, Hilt, Coroutines/Flow. Módulos: `:app`, `:core:data`, `:core:domain`, `:feature:library`, `:feature:chat`, `:ingestion`, `:rag`.
 
 **Telas:**
 1. **Biblioteca** — lista de livros, status (indexando/pronto/erro), importar/remover.
