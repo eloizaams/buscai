@@ -110,7 +110,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   validar", conforme ADR-0003 — se não bater, registrar como débito técnico explícito em vez de
   silenciosamente relaxar o teste).
 
-- [ ] **T9 — Atualizar `docs/adr/` e `specs/eval/`**
+- [x] **T9 — Atualizar `docs/adr/` e `specs/eval/`**
   Confirmar que nenhuma decisão tomada durante a implementação (ex.: valor exato de `input_type`
   aceito pela Voyage, forma de binding do parâmetro `vector` em query nativa, defaults finais de
   `RetrievalProperties`) diverge do que está registrado em ADR-0003/ADR-0010/`plan.md`; se

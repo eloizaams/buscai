@@ -123,6 +123,13 @@ critério de aceite desta feature).
   Devolve, por chunk candidato, **tanto** o `rrfScore` (ordenação final) **quanto** a
   `cosineSimilarity` bruta do ramo vetorial (não é o mesmo número — RRF é por rank, não por
   distância; ver próximo ponto).
+  > **Nota (2026-07-17, T9):** o binding do parâmetro `:queryVector` na query nativa (risco
+  > técnico deixado em aberto em `tasks.md`, T3) foi resolvido como literal de texto (`Float.toString`,
+  > que já usa ponto decimal e independe de locale) com `CAST(:queryVector AS vector)` — não a
+  > classe `com.pgvector.PGvector` nem um tipo JDBC custom; `hibernate-vector` continua só para o
+  > mapeamento JPA de `Chunk.embedding`, não se aplica a esta query nativa. Detalhe completo,
+  > validação de valores não finitos e a query real estão no KDoc de `HybridSearchDao`
+  > (`retrieval/search`), validado por `HybridSearchDaoIntegrationTest`.
 - **Sinal de "sem contexto relevante" (CA7):** calculado sobre a **melhor `cosineSimilarity`**
   entre os candidatos retornados, não sobre o `rrfScore` (RRF sempre produz um topo com *algum*
   rank, mesmo quando nada é de fato relevante — score de rank não é limiar de relevância).
@@ -168,6 +175,15 @@ critério de aceite desta feature).
 Defaults marcados "a calibrar" (`min-cosine-similarity` principalmente) são um risco conhecido:
 ficam explícitos em `tasks.md` como algo a validar contra o golden set assim que ele tiver
 perguntas reais, não um número definitivo fixado por esta spec.
+
+> **Nota (2026-07-17, T9):** `neighbor-dedup-min-overlap-chars` foi implementado com o valor
+> literal **75**, não a fórmula textual acima calculada em runtime — o overlap mínimo do chunking
+> (`OVERLAP_MIN_RATIO`, ADR-0002) é definido em fração de *tokens* (~30 tokens), não em
+> caracteres; convertendo com uma estimativa grosseira de ~5 caracteres/token (~150 chars) e
+> tomando metade (~75), chega-se ao literal usado. É a mesma aproximação descrita acima, só
+> congelada em número desde já em vez de recalculada — justificativa completa no KDoc de
+> `ContextAssembler.overlapsSignificantly` (`retrieval/context`). Continua "a calibrar" contra o
+> golden set (T9), não um número medido do pipeline real.
 
 ## Fora do plano desta feature
 
