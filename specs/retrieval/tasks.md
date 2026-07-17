@@ -99,7 +99,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   cada variante de `RetrievalResult` produz a saída esperada (teste unitário, sem subir o Spring
   context) — mesmo padrão de T10 de `specs/ingestao-pdf/tasks.md`.
 
-- [ ] **T8 — Teste de aceite de latência (CA8 — obrigatório, não opcional)**
+- [x] **T8 — Teste de aceite de latência (CA8 — obrigatório, não opcional)**
   ~50 mil chunks é a escala-alvo do critério de aceite, não um caso extremo — mirror do T11 de
   `specs/ingestao-pdf/tasks.md` (teste de volume). Gera candidatos sintéticos (fixture
   determinística — vetores e textos gerados, não a Voyage real) e persiste via Testcontainers;
