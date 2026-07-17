@@ -19,10 +19,15 @@ import java.util.UUID
  * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010), delega a busca híbrida ao
  * [HybridSearchDao] (T3), corta em [RetrievalProperties.topK] candidatos pós-fusão (`plan.md`,
  * "Config nova" — "quantos candidatos pós-fusão entram no `ContextAssembler`", T7), passa o
- * restante pelo [ContextAssembler] (T5) e, por fim, compara a maior `cosineSimilarity` dos
- * candidatos restantes contra [RetrievalProperties.minCosineSimilarity] (CA7, T6) — abaixo do
- * limiar (ou lista vazia), devolve `NoRelevantContext` mesmo com candidatos produzidos pelas
- * etapas anteriores.
+ * restante pelo [ContextAssembler] (T5) e, por fim, considera "relevante" (CA7, T6) qualquer
+ * candidato restante cuja `cosineSimilarity` bata ou supere [RetrievalProperties.minCosineSimilarity]
+ * **ou** cujo `matchedLexicalBranch` seja `true` — só devolve `NoRelevantContext` se nenhum
+ * candidato satisfizer nenhuma das duas condições (ou a lista estiver vazia). A cláusula
+ * `matchedLexicalBranch` existe porque `cosineSimilarity == 0.0` não significa necessariamente
+ * "irrelevante": é também o valor de "não disponível" que `HybridSearchDao` usa para um chunk que
+ * só veio do ramo léxico (match exato de termo/nome próprio, CA3) sem aparecer entre os top-N
+ * vetoriais — sem essa cláusula, esse cenário (exatamente o que CA3 existe para resolver) caía
+ * incorretamente em `NoRelevantContext` (bug corrigido em 2026-07-17, nota também em `plan.md`).
  */
 @Service
 class RetrievalService(
@@ -67,8 +72,11 @@ class RetrievalService(
                 neighborDedupMinOverlapChars = retrievalProperties.neighborDedupMinOverlapChars,
             )
 
-        val bestCosineSimilarity = assembledRows.maxOfOrNull { it.cosineSimilarity }
-        if (bestCosineSimilarity == null || bestCosineSimilarity < retrievalProperties.minCosineSimilarity) {
+        val hasRelevantCandidate =
+            assembledRows.any { row ->
+                row.cosineSimilarity >= retrievalProperties.minCosineSimilarity || row.matchedLexicalBranch
+            }
+        if (!hasRelevantCandidate) {
             return RetrievalResult.NoRelevantContext
         }
 

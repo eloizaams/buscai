@@ -141,6 +141,13 @@ class HybridSearchDaoIntegrationTest {
         assertEquals(0.0, rowComTermo.cosineSimilarity, 1e-6)
         // charOffset persistido no chunk (T5, ContextAssembler) vem intacto na projeção da query nativa.
         assertEquals(42, rowComTermo.charOffset)
+        // Só veio do ramo léxico — matchedLexicalBranch distingue esse 0.0 de "não disponível" de
+        // um 0.0 genuíno de irrelevância (RetrievalService, CA7).
+        assertTrue(rowComTermo.matchedLexicalBranch, "chunk com match léxico deveria ter matchedLexicalBranch = true")
+
+        val rowPertoDoVetor = result.first { it.chunkId == chunkPertoDoVetor.id }
+        // Só veio do ramo vetorial (não contém o termo léxico buscado) — matchedLexicalBranch = false.
+        assertFalse(rowPertoDoVetor.matchedLexicalBranch, "chunk só do ramo vetorial não deveria ter matchedLexicalBranch = true")
     }
 
     @Test
@@ -211,5 +218,9 @@ class HybridSearchDaoIntegrationTest {
         assertEquals(0.0, rowOrtogonal.cosineSimilarity, 1e-4)
         // Ordenação da fusão: o candidato de maior rrfScore vem primeiro.
         assertTrue(rowIdentico.rrfScore >= rowOrtogonal.rrfScore)
+        // Nenhum dos dois casou o termo léxico (queryText inexistente nos textos) — o 0.0 de
+        // rowOrtogonal aqui é cosine similarity genuína, não o placeholder de "não disponível".
+        assertFalse(rowIdentico.matchedLexicalBranch)
+        assertFalse(rowOrtogonal.matchedLexicalBranch)
     }
 }

@@ -35,6 +35,7 @@ class ContextAssemblerTest {
             tokenCount = tokenCount,
             cosineSimilarity = 0.0,
             rrfScore = rrfScore,
+            matchedLexicalBranch = false,
         )
 
     @Test

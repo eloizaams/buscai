@@ -130,11 +130,21 @@ critério de aceite desta feature).
   > mapeamento JPA de `Chunk.embedding`, não se aplica a esta query nativa. Detalhe completo,
   > validação de valores não finitos e a query real estão no KDoc de `HybridSearchDao`
   > (`retrieval/search`), validado por `HybridSearchDaoIntegrationTest`.
-- **Sinal de "sem contexto relevante" (CA7):** calculado sobre a **melhor `cosineSimilarity`**
-  entre os candidatos retornados, não sobre o `rrfScore` (RRF sempre produz um topo com *algum*
-  rank, mesmo quando nada é de fato relevante — score de rank não é limiar de relevância).
-  `RetrievalService` compara contra `RetrievalProperties.minCosineSimilarity`; abaixo do limiar,
-  devolve `RetrievalResult.NoRelevantContext` mesmo que `HybridSearchDao` tenha devolvido linhas.
+- **Sinal de "sem contexto relevante" (CA7):** um candidato é considerado relevante se sua
+  `cosineSimilarity` bater ou superar `RetrievalProperties.minCosineSimilarity` **ou** se
+  `matchedLexicalBranch` for `true`; `NoRelevantContext` só é devolvido se nenhum candidato
+  satisfizer nenhuma das duas condições (ou a lista pós-`ContextAssembler` estiver vazia). Não é
+  calculado sobre o `rrfScore` (RRF sempre produz um topo com *algum* rank, mesmo quando nada é de
+  fato relevante — score de rank não é limiar de relevância).
+  > **Nota (2026-07-17):** a versão original deste gate usava só `cosineSimilarity` (sem a
+  > cláusula `matchedLexicalBranch`). Bug: `HybridSearchDao` usa `cosineSimilarity = 0.0` como
+  > placeholder de "não disponível" para um chunk que só apareceu no ramo léxico da fusão RRF (fora
+  > do top-N vetorial, ver `HybridSearchRow.cosineSimilarity`) — um match léxico exato de um
+  > termo/nome próprio (CA3, o cenário que a fusão RRF existe para resolver) tinha
+  > `cosineSimilarity = 0.0`, caía abaixo do limiar (0.5) e era descartado como "sem contexto
+  > relevante", mesmo sendo o resultado correto que CA3 pede para preservar. Corrigido expondo
+  > `HybridSearchRow.matchedLexicalBranch` (`l.chunk_id IS NOT NULL` na CTE `lexical_rank` de
+  > `HybridSearchDao`, já existente) e usando-o como sinal alternativo de relevância no gate.
 - **`ContextAssembler.assemble` (dono de dedup + orçamento — nota no ADR-0004):**
   1. Ordena candidatos por `rrfScore` desc.
   2. Dedup de vizinhos: dois chunks da mesma `bookVersionId` cujas janelas de `charOffset` se
@@ -152,7 +162,7 @@ critério de aceite desta feature).
 | Tipo | Campos-chave | Observação |
 |---|---|---|
 | `RetrievalScope` (sealed) | `AllBooks` / `Books(bookIds: Set<String>)` (não vazio) | entrada de `RetrievalService.search`; contrato já dimensionado para a seleção de livros pelo usuário (Fase 6) |
-| `HybridSearchRow` | `chunkId`, `bookVersionId`, `page`, `chapter`, `text`, `tokenCount`, `cosineSimilarity`, `rrfScore` | projeção crua de `HybridSearchDao`, não persistida |
+| `HybridSearchRow` | `chunkId`, `bookVersionId`, `page`, `chapter`, `text`, `tokenCount`, `cosineSimilarity`, `rrfScore`, `matchedLexicalBranch` | projeção crua de `HybridSearchDao`, não persistida |
 | `RetrievedChunk` | `chunkId`, `bookId`, `bookTitle`, `page`, `chapter`, `text`, `score` | saída final, formato de citação (livro + página) |
 | `RetrievalResult` (sealed) | `Found(chunks: List<RetrievedChunk>)` / `NoRelevantContext` | devolvido por `RetrievalService.search` |
 | `EmbeddingInputType` (enum, pacote `embedding`) | `DOCUMENT` / `QUERY` | ADR-0010; ingestão usa `DOCUMENT`, retrieval usa `QUERY` |

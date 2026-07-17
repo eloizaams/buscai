@@ -87,6 +87,7 @@ class HybridSearchDao(
                     tokenCount = rs.getInt("token_count"),
                     cosineSimilarity = rs.getDouble("cosine_similarity"),
                     rrfScore = rs.getDouble("rrf_score"),
+                    matchedLexicalBranch = rs.getBoolean("matched_lexical_branch"),
                 )
             }
 
@@ -118,10 +119,15 @@ class HybridSearchDao(
             -- Fusão RRF: soma 1/(k + rank) por ramo em que o chunk aparece (rank 1-indexado dentro
             -- de cada ramo); um chunk ausente de um ramo contribui 0 daquele ramo (COALESCE), não é
             -- descartado — FULL OUTER JOIN preserva quem apareceu em só um dos dois ramos.
+            -- matched_lexical_branch: true quando o chunk apareceu na CTE lexical_rank (match léxico
+            -- exato dentro de lexicalCandidates), independente de também ter aparecido no ramo
+            -- vetorial — sinal usado por RetrievalService para não descartar por CA7 um chunk que
+            -- só tem cosine_similarity != 0 medida (ver nota em HybridSearchRow.matchedLexicalBranch).
             fused AS (
                 SELECT
                     COALESCE(v.chunk_id, l.chunk_id) AS chunk_id,
-                    COALESCE(1.0 / (:rrfK + v.rnk), 0.0) + COALESCE(1.0 / (:rrfK + l.rnk), 0.0) AS rrf_score
+                    COALESCE(1.0 / (:rrfK + v.rnk), 0.0) + COALESCE(1.0 / (:rrfK + l.rnk), 0.0) AS rrf_score,
+                    l.chunk_id IS NOT NULL AS matched_lexical_branch
                 FROM vector_rank v
                 FULL OUTER JOIN lexical_rank l ON v.chunk_id = l.chunk_id
             )
@@ -137,7 +143,8 @@ class HybridSearchDao(
                 ch.text AS text,
                 ch.token_count AS token_count,
                 COALESCE(vr.cosine_similarity, 0.0) AS cosine_similarity,
-                f.rrf_score AS rrf_score
+                f.rrf_score AS rrf_score,
+                f.matched_lexical_branch AS matched_lexical_branch
             FROM fused f
             JOIN chunk ch ON ch.id = f.chunk_id
             LEFT JOIN vector_rank vr ON vr.chunk_id = f.chunk_id

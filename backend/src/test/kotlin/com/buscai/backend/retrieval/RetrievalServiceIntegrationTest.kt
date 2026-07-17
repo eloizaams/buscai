@@ -347,20 +347,53 @@ class RetrievalServiceIntegrationTest {
     }
 
     @Test
-    fun `candidatos todos com cosineSimilarity abaixo do limiar produzem NoRelevantContext (CA7)`() {
+    fun `candidato sem match lexico e com cosineSimilarity abaixo do limiar produz NoRelevantContext (CA7)`() {
         val suffix = UUID.randomUUID()
         val livro = persistBook("livro-baixa-similaridade-$suffix", "Livro Baixa Similaridade")
         val versao = persistVersion(livro.id, BookVersionStatus.READY)
         activate(livro, versao.id)
-        // Match léxico exato do termo da query ("excêntrico"), mas embedding ortogonal ao vetor
-        // "one-hot" que FakeQueryEmbeddingClient devolve para a query (oneHotEmbedding(0)) —
-        // cosine_similarity real entre os dois vetores one-hot ortogonais é 0.0, bem abaixo do
-        // limiar default de 0.5 (plan.md, "Config nova").
-        persistChunk(versao.id, "Um personagem excêntrico aparece no capítulo final.", embedding = oneHotEmbedding(7))
+        // Nenhum match léxico do termo da query ("excêntrico" não aparece no texto do chunk) e
+        // embedding ortogonal ao vetor "one-hot" que FakeQueryEmbeddingClient devolve para a query
+        // (oneHotEmbedding(0)) — cosine_similarity real entre os dois vetores one-hot ortogonais é
+        // 0.0 (bem abaixo do limiar default de 0.5, plan.md "Config nova") e matchedLexicalBranch
+        // é false (chunk não entra na CTE lexical_rank): nenhum dos dois sinais de relevância do
+        // gate de CA7 é satisfeito.
+        //
+        // Nota (2026-07-17): antes deste teste usava um chunk com match léxico exato do termo da
+        // query — esse era exatamente o cenário do bug corrigido em RetrievalService.search (ver
+        // KDoc da classe e HybridSearchRow.matchedLexicalBranch): um match léxico puro (CA3) era
+        // incorretamente tratado como "sem contexto relevante" por só olhar cosineSimilarity. O
+        // cenário mudou para continuar testando genuinamente "nenhum sinal de relevância", não mais
+        // o comportamento (agora incorreto) de descartar um match léxico exato.
+        persistChunk(versao.id, "Um personagem qualquer aparece no capítulo final.", embedding = oneHotEmbedding(7))
 
         val result = retrievalService.search("excêntrico", RetrievalScope.Books(setOf(livro.id)))
 
         assertEquals(RetrievalResult.NoRelevantContext, result)
+    }
+
+    @Test
+    fun `chunk com match lexico exato mas embedding distante produz Found, nao NoRelevantContext (CA3 + CA7, bug fix 2026-07-17)`() {
+        val suffix = UUID.randomUUID()
+        val livro = persistBook("livro-lexico-puro-$suffix", "Livro Léxico Puro")
+        val versao = persistVersion(livro.id, BookVersionStatus.READY)
+        activate(livro, versao.id)
+        // Único chunk do livro: contém o termo exato buscado ("excêntrico"), mas embedding
+        // ortogonal ao vetor one-hot(0) que FakeQueryEmbeddingClient devolve para a query —
+        // cosineSimilarity real é 0.0, abaixo do limiar default de 0.5. Reproduz o cenário exato do
+        // bug de CA7 corrigido em 2026-07-17: um match léxico puro (CA3, "termos exatos e nomes
+        // próprios que a busca puramente semântica não colocaria no topo", spec.md) não pode ser
+        // descartado como "sem contexto relevante" só por não ter aparecido no ramo vetorial.
+        val chunkComTermo =
+            persistChunk(versao.id, "Um personagem excêntrico aparece no capítulo final.", embedding = oneHotEmbedding(7))
+
+        val result = retrievalService.search("excêntrico", RetrievalScope.Books(setOf(livro.id)))
+
+        require(result is RetrievalResult.Found)
+        assertTrue(
+            result.chunks.any { it.chunkId == chunkComTermo.id },
+            "esperava encontrar o chunk com match léxico exato: ${result.chunks}",
+        )
     }
 
     @Test
