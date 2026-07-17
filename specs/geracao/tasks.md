@@ -4,7 +4,7 @@ Ordem sequencial — cada item depende do(s) anterior(es) e cabe numa sessão do
 `kotlin-implementer`. Todos em `backend/`. Rodar `./gradlew ktlintFormat` e os testes do módulo ao
 final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
 
-- [ ] **T1 — `ClaudeClient`: porta + adapter sobre o SDK oficial (`com.anthropic:anthropic-java`)**
+- [x] **T1 — `ClaudeClient`: porta + adapter sobre o SDK oficial (`com.anthropic:anthropic-java`)**
   Adicionar `implementation("com.anthropic:anthropic-java:2.34.0")` a `backend/build.gradle.kts`.
   Pacote novo `com.buscai.backend.generation.claude`: `ClaudeClient` (interface —
   `rewriteQuery(query: String, history: List<HistoryTurn>): String` e
@@ -72,7 +72,11 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   sucesso, persiste a resposta acumulada como `Message` do assistente; em caso de exceção durante
   `generate`, **não persiste nenhuma linha de assistente** e relança (ou devolve um resultado de
   erro tipado — decisão da task) para o chamador (T5) tratar. `GenerationProperties`
-  (`buscai.generation.*` — `maxTokens` default 2048, `historyTurns` default 6). Transações: os
+  (`buscai.generation.*` — `maxTokens` default 2048, `historyTurns` default 6). **Critério
+  explícito de conclusão desta task (apontado no review da T1):** remover a constante
+  `ANSWER_MAX_TOKENS` de `AnthropicClaudeClient` e conectar `ClaudeClient.generate` ao valor de
+  `GenerationProperties.maxTokens` (seja adicionando um parâmetro `maxTokens` à assinatura, seja
+  outro canal) — não deixar a constante sobreviver em paralelo à config nova. Transações: os
   métodos que leem histórico e gravam `Message` usam `@Transactional` próprios (não dependem da
   sessão do request — esta classe já é pensada para rodar fora do thread do Tomcat, ver T5). Teste
   via Testcontainers com um `ClaudeClient` fake determinístico (sem chamar a Anthropic real):

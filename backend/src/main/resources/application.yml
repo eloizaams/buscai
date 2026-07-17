@@ -15,12 +15,12 @@ buscai:
   security:
     # ADR-0005: chave estática enviada pelo app no header X-Api-Key.
     api-key: ${BUSCAI_API_KEY:changeme}
+  claude:
+    # specs/geracao/plan.md, seção "Config nova". ANTHROPIC_API_KEY não entra aqui — o SDK oficial
+    # (AnthropicOkHttpClient.fromEnv()) já lê a variável de ambiente direto, nunca via esta chave.
+    rewrite-model: claude-haiku-4-5
+    answer-model: claude-sonnet-5
   ai:
-    claude:
-      # ADR-0004: nunca versionar a key de verdade — só via variável de ambiente.
-      api-key: ${ANTHROPIC_API_KEY:}
-      model-fast: claude-haiku-4-5
-      model-quality: claude-sonnet-5
     voyage:
       # ADR-0003: embeddings multilíngues via Voyage AI.
       api-key: ${VOYAGE_API_KEY:}
