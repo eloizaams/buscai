@@ -86,7 +86,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   configurado produzem `NoRelevantContext`; ao menos um acima do limiar produz `Found` com os
   candidatos esperados.
 
-- [ ] **T7 — Config (`buscai.retrieval.*`) + `RetrievalDebugCommand`**
+- [x] **T7 — Config (`buscai.retrieval.*`) + `RetrievalDebugCommand`**
   `RetrievalProperties` (binding de `buscai.retrieval.*` — `vector-candidates`,
   `lexical-candidates`, `top-k`, `rrf-k`, `token-budget`, `min-cosine-similarity`,
   `neighbor-dedup-min-overlap-chars`, defaults de `plan.md`) adicionado a `application.yml`;

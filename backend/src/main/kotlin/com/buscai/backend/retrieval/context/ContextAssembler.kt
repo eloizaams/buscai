@@ -4,24 +4,6 @@ import com.buscai.backend.retrieval.search.HybridSearchRow
 import org.springframework.stereotype.Component
 
 /**
- * Limiar mínimo, em caracteres, de sobreposição entre as janelas `[charOffset, charOffset +
- * text.length)` de dois candidatos da mesma `bookVersionId` e mesma `page` para serem tratados
- * como vizinhos redundantes (dedup, CA4, `specs/retrieval/tasks.md` T5).
- *
- * Valor literal até T7 conectar `RetrievalProperties.neighborDedupMinOverlapChars`
- * (`buscai.retrieval.neighbor-dedup-min-overlap-chars`) — default sugerido em
- * `specs/retrieval/plan.md`, seção "Config nova": "metade do overlap mínimo do chunking
- * (ADR-0002)". O overlap do chunking (`OVERLAP_MIN_RATIO`, `ingestion.chunking.Chunker`) é definido
- * em fração de tokens (10% de [com.buscai.backend.ingestion.chunking.MIN_CHUNK_TOKENS] = 300, ou
- * seja, ~30 tokens), não em caracteres; convertendo com uma estimativa grosseira de ~5
- * caracteres por token (palavra + espaço, PT-BR/EN), isso dá ~150 caracteres de overlap mínimo
- * esperado entre chunks vizinhos — a metade disso é o limiar de dedup usado aqui. É uma
- * aproximação deliberadamente conservadora (a calibrar quando T7 expuser a config), não um número
- * medido do pipeline real de chunking.
- */
-private const val NEIGHBOR_DEDUP_MIN_OVERLAP_CHARS = 75
-
-/**
  * Dono de duas responsabilidades pós-fusão RRF (`specs/retrieval/plan.md`, seção "Contratos entre
  * camadas" — nota também em ADR-0004): dedup de chunks vizinhos redundantes e orçamento de tokens
  * do contexto final. Opera sobre a projeção crua [HybridSearchRow] (antes da conversão para
@@ -33,7 +15,7 @@ class ContextAssembler {
      * 1. Ordena [rows] por [HybridSearchRow.rrfScore] desc.
      * 2. Dedup de vizinhos (CA4): dois candidatos da mesma [HybridSearchRow.bookVersionId] e mesma
      *    [HybridSearchRow.page] cujas janelas `[charOffset, charOffset + text.length)` se
-     *    sobrepõem em pelo menos [NEIGHBOR_DEDUP_MIN_OVERLAP_CHARS] caracteres são tratados como
+     *    sobrepõem em pelo menos [neighborDedupMinOverlapChars] caracteres são tratados como
      *    redundantes — mantém só o de maior `rrfScore` (o primeiro a ser aceito, dada a ordenação
      *    do passo 1), descarta o outro. `charOffset` é relativo à página (KDoc de
      *    [HybridSearchRow]), então candidatos de páginas diferentes nunca são comparados.
@@ -41,22 +23,41 @@ class ContextAssembler {
      *    passo 2 até [tokenBudget]; um candidato cujo `tokenCount` estouraria o orçamento não
      *    entra, e nenhum candidato depois dele é considerado (preserva a ordem por relevância).
      *
+     * [neighborDedupMinOverlapChars] vem de `RetrievalProperties.neighborDedupMinOverlapChars`
+     * (`buscai.retrieval.neighbor-dedup-min-overlap-chars`) — default sugerido em
+     * `specs/retrieval/plan.md`, seção "Config nova": "metade do overlap mínimo do chunking
+     * (ADR-0002)". O overlap do chunking (`OVERLAP_MIN_RATIO`, `ingestion.chunking.Chunker`) é
+     * definido em fração de tokens (10% de
+     * [com.buscai.backend.ingestion.chunking.MIN_CHUNK_TOKENS] = 300, ou seja, ~30 tokens), não em
+     * caracteres; convertendo com uma estimativa grosseira de ~5 caracteres por token (palavra +
+     * espaço, PT-BR/EN), isso dá ~150 caracteres de overlap mínimo esperado entre chunks vizinhos —
+     * a metade disso (75, default de `RetrievalProperties`) é o limiar de dedup usado por padrão.
+     * É uma aproximação deliberadamente conservadora (a calibrar quando o golden set tiver
+     * perguntas reais, T9), não um número medido do pipeline real de chunking.
+     *
      * Lista vazia devolve lista vazia.
      */
     fun assemble(
         rows: List<HybridSearchRow>,
         tokenBudget: Int,
+        neighborDedupMinOverlapChars: Int,
     ): List<HybridSearchRow> {
         if (rows.isEmpty()) return emptyList()
 
-        val deduped = dedupNeighbors(rows.sortedByDescending { it.rrfScore })
+        val deduped = dedupNeighbors(rows.sortedByDescending { it.rrfScore }, neighborDedupMinOverlapChars)
         return applyTokenBudget(deduped, tokenBudget)
     }
 
-    private fun dedupNeighbors(candidatesByScoreDesc: List<HybridSearchRow>): List<HybridSearchRow> {
+    private fun dedupNeighbors(
+        candidatesByScoreDesc: List<HybridSearchRow>,
+        neighborDedupMinOverlapChars: Int,
+    ): List<HybridSearchRow> {
         val kept = mutableListOf<HybridSearchRow>()
         for (candidate in candidatesByScoreDesc) {
-            val isRedundant = kept.any { alreadyKept -> overlapsSignificantly(alreadyKept, candidate) }
+            val isRedundant =
+                kept.any { alreadyKept ->
+                    overlapsSignificantly(alreadyKept, candidate, neighborDedupMinOverlapChars)
+                }
             if (!isRedundant) kept += candidate
         }
         return kept
@@ -96,13 +97,14 @@ class ContextAssembler {
     private fun overlapsSignificantly(
         a: HybridSearchRow,
         b: HybridSearchRow,
+        neighborDedupMinOverlapChars: Int,
     ): Boolean {
         if (a.bookVersionId != b.bookVersionId || a.page != b.page) return false
 
         val aEnd = a.charOffset + a.text.length
         val bEnd = b.charOffset + b.text.length
         val overlapChars = minOf(aEnd, bEnd) - maxOf(a.charOffset, b.charOffset)
-        return overlapChars >= NEIGHBOR_DEDUP_MIN_OVERLAP_CHARS
+        return overlapChars >= neighborDedupMinOverlapChars
     }
 
     private fun applyTokenBudget(

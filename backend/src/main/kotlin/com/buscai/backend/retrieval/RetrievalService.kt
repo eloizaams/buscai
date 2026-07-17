@@ -14,33 +14,15 @@ import org.springframework.stereotype.Service
 import java.util.UUID
 
 /**
- * Valores literais de T3/T5/T6 (`vectorCandidates`/`lexicalCandidates`/`rrfK`/`tokenBudget`/
- * `minCosineSimilarity`) usados por [RetrievalService] até T7 conectar `RetrievalProperties`
- * (`buscai.retrieval.*`) — mesmos defaults sugeridos em `specs/retrieval/plan.md`, seção "Config
- * nova".
- */
-private const val DEFAULT_VECTOR_CANDIDATES = 50
-private const val DEFAULT_LEXICAL_CANDIDATES = 50
-private const val DEFAULT_RRF_K = 60
-private const val DEFAULT_TOKEN_BUDGET = 3000
-
-/**
- * Limiar mínimo de `HybridSearchRow.cosineSimilarity` (o maior entre os candidatos pós
- * [ContextAssembler]) para considerar o resultado como contexto relevante (CA7). Default marcado
- * "a calibrar" em `specs/retrieval/plan.md`, seção "Config nova" — T7 conecta
- * `RetrievalProperties.minCosineSimilarity` (`buscai.retrieval.min-cosine-similarity`) no lugar
- * desta constante.
- */
-private const val DEFAULT_MIN_COSINE_SIMILARITY = 0.5
-
-/**
  * Único ponto de entrada da lógica de retrieval (`specs/retrieval/plan.md`, seção "Contratos entre
  * camadas"): resolve o escopo da busca em versões ativas buscáveis (CA2/CA6), embedda a pergunta
  * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010), delega a busca híbrida ao
- * [HybridSearchDao] (T3), passa o resultado pelo [ContextAssembler] (T5) e, por fim, compara a
- * maior `cosineSimilarity` dos candidatos restantes contra [DEFAULT_MIN_COSINE_SIMILARITY] (CA7,
- * T6) — abaixo do limiar (ou lista vazia), devolve `NoRelevantContext` mesmo com candidatos
- * produzidos pelas etapas anteriores.
+ * [HybridSearchDao] (T3), corta em [RetrievalProperties.topK] candidatos pós-fusão (`plan.md`,
+ * "Config nova" — "quantos candidatos pós-fusão entram no `ContextAssembler`", T7), passa o
+ * restante pelo [ContextAssembler] (T5) e, por fim, compara a maior `cosineSimilarity` dos
+ * candidatos restantes contra [RetrievalProperties.minCosineSimilarity] (CA7, T6) — abaixo do
+ * limiar (ou lista vazia), devolve `NoRelevantContext` mesmo com candidatos produzidos pelas
+ * etapas anteriores.
  */
 @Service
 class RetrievalService(
@@ -50,6 +32,7 @@ class RetrievalService(
     private val voyageProperties: VoyageProperties,
     private val hybridSearchDao: HybridSearchDao,
     private val contextAssembler: ContextAssembler,
+    private val retrievalProperties: RetrievalProperties,
 ) {
     fun search(
         query: String,
@@ -65,15 +48,27 @@ class RetrievalService(
                 queryVector = queryVector,
                 queryText = query,
                 eligibleBookVersionIds = eligibleVersions.keys.toList(),
-                vectorCandidates = DEFAULT_VECTOR_CANDIDATES,
-                lexicalCandidates = DEFAULT_LEXICAL_CANDIDATES,
-                rrfK = DEFAULT_RRF_K,
+                vectorCandidates = retrievalProperties.vectorCandidates,
+                lexicalCandidates = retrievalProperties.lexicalCandidates,
+                rrfK = retrievalProperties.rrfK,
             )
 
-        val assembledRows = contextAssembler.assemble(rows, DEFAULT_TOKEN_BUDGET)
+        // Corte de top-k pós-fusão (RRF já ordena `rows` por `rrfScore` desc, ver
+        // HybridSearchDao.search): "quantos candidatos pós-fusão entram no ContextAssembler"
+        // (plan.md, "Config nova") — aplicado aqui, antes do ContextAssembler, e não dentro dele,
+        // porque o corte é sobre o *número* de candidatos que chegam ao dedup/orçamento, não sobre
+        // o orçamento de tokens em si (responsabilidade já coberta por tokenBudget).
+        val topRows = rows.take(retrievalProperties.topK)
+
+        val assembledRows =
+            contextAssembler.assemble(
+                rows = topRows,
+                tokenBudget = retrievalProperties.tokenBudget,
+                neighborDedupMinOverlapChars = retrievalProperties.neighborDedupMinOverlapChars,
+            )
 
         val bestCosineSimilarity = assembledRows.maxOfOrNull { it.cosineSimilarity }
-        if (bestCosineSimilarity == null || bestCosineSimilarity < DEFAULT_MIN_COSINE_SIMILARITY) {
+        if (bestCosineSimilarity == null || bestCosineSimilarity < retrievalProperties.minCosineSimilarity) {
             return RetrievalResult.NoRelevantContext
         }
 

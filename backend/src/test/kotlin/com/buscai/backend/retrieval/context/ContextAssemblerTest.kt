@@ -8,10 +8,13 @@ import kotlin.test.assertTrue
 
 /**
  * Teste unitário puro (sem Spring context, sem banco) de [ContextAssembler] —
- * `specs/retrieval/tasks.md`, T5.
+ * `specs/retrieval/tasks.md`, T5/T7.
  */
 class ContextAssemblerTest {
     private val assembler = ContextAssembler()
+
+    /** Mesmo default de `RetrievalProperties.neighborDedupMinOverlapChars` (T7). */
+    private val defaultNeighborDedupMinOverlapChars = 75
 
     private fun row(
         chunkId: UUID = UUID.randomUUID(),
@@ -55,7 +58,12 @@ class ContextAssemblerTest {
                 rrfScore = 0.02,
             )
 
-        val result = assembler.assemble(listOf(menorScore, maiorScore), tokenBudget = 10_000)
+        val result =
+            assembler.assemble(
+                listOf(menorScore, maiorScore),
+                tokenBudget = 10_000,
+                neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars,
+            )
 
         assertEquals(listOf(maiorScore), result)
     }
@@ -69,7 +77,12 @@ class ContextAssemblerTest {
         val segundo =
             row(bookVersionId = versionId, charOffset = 90, text = "b".repeat(100), tokenCount = 10, rrfScore = 0.01)
 
-        val result = assembler.assemble(listOf(segundo, primeiro), tokenBudget = 10_000)
+        val result =
+            assembler.assemble(
+                listOf(segundo, primeiro),
+                tokenBudget = 10_000,
+                neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars,
+            )
 
         assertEquals(listOf(primeiro, segundo), result)
     }
@@ -84,7 +97,7 @@ class ContextAssemblerTest {
                 row(bookVersionId = UUID.randomUUID(), charOffset = 0, text = "x", tokenCount = 1000, rrfScore = 0.005),
             )
 
-        val result = assembler.assemble(candidatos, tokenBudget = 3000)
+        val result = assembler.assemble(candidatos, tokenBudget = 3000, neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars)
 
         assertEquals(3, result.size, "esperava cortar o 4º candidato, que estouraria o orçamento de 3000 tokens")
         assertEquals(candidatos.take(3), result, "ordem por relevância (rrfScore desc) deve ser preservada")
@@ -93,7 +106,7 @@ class ContextAssemblerTest {
 
     @Test
     fun `lista vazia devolve lista vazia sem erro`() {
-        val result = assembler.assemble(emptyList(), tokenBudget = 3000)
+        val result = assembler.assemble(emptyList(), tokenBudget = 3000, neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars)
 
         assertEquals(emptyList(), result)
     }
@@ -144,6 +157,7 @@ class ContextAssemblerTest {
             assembler.assemble(
                 listOf(chunkA, chunkBVizinhoDireto, chunkCNaoVizinho),
                 tokenBudget = 10_000,
+                neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars,
             )
 
         assertEquals(
@@ -161,7 +175,12 @@ class ContextAssemblerTest {
         val candidato2OutraVersao =
             row(bookVersionId = UUID.randomUUID(), charOffset = 50, text = "b".repeat(200), tokenCount = 10, rrfScore = 0.01)
 
-        val result = assembler.assemble(listOf(candidato1, candidato2OutraVersao), tokenBudget = 10_000)
+        val result =
+            assembler.assemble(
+                listOf(candidato1, candidato2OutraVersao),
+                tokenBudget = 10_000,
+                neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars,
+            )
 
         assertEquals(
             listOf(candidato1, candidato2OutraVersao),
@@ -178,7 +197,12 @@ class ContextAssemblerTest {
         val candidato2OutraPagina =
             row(bookVersionId = versionId, page = 2, charOffset = 50, text = "b".repeat(200), tokenCount = 10, rrfScore = 0.01)
 
-        val result = assembler.assemble(listOf(candidato1, candidato2OutraPagina), tokenBudget = 10_000)
+        val result =
+            assembler.assemble(
+                listOf(candidato1, candidato2OutraPagina),
+                tokenBudget = 10_000,
+                neighborDedupMinOverlapChars = defaultNeighborDedupMinOverlapChars,
+            )
 
         assertEquals(
             listOf(candidato1, candidato2OutraPagina),
