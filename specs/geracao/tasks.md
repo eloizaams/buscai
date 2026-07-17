@@ -23,7 +23,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   `generate` invoca `onToken` uma vez por delta de texto recebido no SSE simulado, na ordem certa;
   (c) uma falha de rede/HTTP na chamada propaga uma exceção (não engole silenciosamente).
 
-- [ ] **T2 — Migration V3: `Conversation`/`Message` + repositórios**
+- [x] **T2 — Migration V3: `Conversation`/`Message` + repositórios**
   `V3__conversation_message.sql` (Flyway): tabelas `conversation` e `message` exatamente como
   `specs/geracao/plan.md`, seção "Schema", especifica (incluindo os dois índices). Pacote novo
   `com.buscai.backend.generation.conversation`: entidades JPA `Conversation` (`id`, `deviceId`,
@@ -85,7 +85,9 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   prompt esperado (asserção sobre o que foi passado ao `ClaudeClient` fake) e persiste a resposta
   completa acumulada dos deltas; uma exceção do `ClaudeClient` fake durante `generate` não deixa
   nenhuma `Message` de assistente persistida, mas a pergunta do usuário já está persistida antes
-  disso (CA7/CA10).
+  disso (CA7/CA10). Ao gravar qualquer `Message` nova (pergunta ou resposta), atualizar
+  `Conversation.updatedAt` — o finder `findByDeviceIdOrderByUpdatedAtDesc` (T2) só ordena
+  corretamente `GET /conversations` (T6) se esse campo refletir a última atividade real.
 
 - [ ] **T5 — `ChatController`: `POST /chat` via `SseEmitter`**
   Pacote `com.buscai.backend.generation.web`. `ChatRequest` (DTO: `conversationId: UUID?`,
