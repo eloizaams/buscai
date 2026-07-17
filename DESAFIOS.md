@@ -3,6 +3,18 @@
 Registro de dificuldades encontradas durante o desenvolvimento que não são corrigíveis via ajuste
 de skill/agent — ver histórico de `.claude/agents/*.md` para os itens que já foram corrigidos.
 
+## 2026-07-16 — duas sessões editando a mesma branch em paralelo
+
+Enquanto uma sessão discutia/aprovava a generalização do escopo de retrieval
+(`RetrievalScope.Books(bookIds)`), outra sessão implementava T4 na mesma branch — edições no
+`specs/retrieval/tasks.md` falharam duas vezes por modificação concorrente, e a generalização quase
+foi feita em duplicidade (a outra sessão aplicou a mesma mudança por conta própria). Convergiu bem
+desta vez, mas foi sorte de as decisões coincidirem. Não é corrigível por skill: é operacional.
+Mitigação ao trabalhar com sessões paralelas: (1) uma sessão por branch sempre que possível;
+(2) antes de editar spec/código em sessão "de análise", checar `git log` + mtime dos arquivos-alvo;
+(3) decisões aprovadas numa sessão devem ser comunicadas à sessão implementadora (ou registradas
+em spec commitada) antes de ela chegar na task afetada.
+
 ## 2026-07-13 — custo de rodadas review→fix→re-review em cadeia
 
 Ao fechar T8-T12 da feature de ingestão (`specs/ingestao-pdf/`), o gate final de `/pr` (revisão do
