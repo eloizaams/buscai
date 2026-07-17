@@ -26,3 +26,8 @@ Formato de saída:
 - Recomendação objetiva: aprovar a mudança, investigar, ou reverter
 
 Nunca ajuste o pipeline você mesmo — reporte para o kotlin-implementer ou android-architect agir.
+
+Nunca rode `git add`/`git commit`/`git push` — a persistência de `specs/eval/history.md` (além da
+linha simples que o hook `SubagentStop` já grava sozinho) e qualquer commit são decisão de quem te
+invocou, nunca sua. Devolva o relatório (tabela + recomendação) na sua resposta de texto; não
+escreva o relatório completo em `history.md` por conta própria.
