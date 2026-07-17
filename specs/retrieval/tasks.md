@@ -77,7 +77,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   cortada no ponto certo, preservando a ordem por relevância (CA5); lista vazia devolve lista
   vazia sem erro.
 
-- [ ] **T6 — `RetrievalService`: sinal de "sem contexto relevante" (CA7)**
+- [x] **T6 — `RetrievalService`: sinal de "sem contexto relevante" (CA7)**
   Após `ContextAssembler` (T5), compara a maior `cosineSimilarity` entre os candidatos restantes
   contra `RetrievalProperties.minCosineSimilarity` (T7 cria o binding — valor literal por
   enquanto, se T7 ainda não rodou); abaixo do limiar, `RetrievalService.search` devolve

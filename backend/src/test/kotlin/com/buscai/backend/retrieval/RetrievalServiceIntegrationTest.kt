@@ -142,6 +142,8 @@ class RetrievalServiceIntegrationTest {
         bookVersionId: UUID,
         text: String,
         page: Int = 1,
+        tokenCount: Int = 10,
+        embedding: FloatArray = oneHotEmbedding(0),
     ): Chunk =
         chunkRepository.save(
             Chunk(
@@ -149,9 +151,9 @@ class RetrievalServiceIntegrationTest {
                 bookVersionId = bookVersionId,
                 page = page,
                 charOffset = 0,
-                tokenCount = 10,
+                tokenCount = tokenCount,
                 text = text,
-                embedding = oneHotEmbedding(0),
+                embedding = embedding,
             ),
         )
 
@@ -342,5 +344,61 @@ class RetrievalServiceIntegrationTest {
 
         assertEquals(RetrievalResult.NoRelevantContext, result)
         assertTrue(fakeQueryEmbeddingClient.receivedInputTypes.isEmpty(), "não deveria chamar o EmbeddingClient sem versão elegível")
+    }
+
+    @Test
+    fun `candidatos todos com cosineSimilarity abaixo do limiar produzem NoRelevantContext (CA7)`() {
+        val suffix = UUID.randomUUID()
+        val livro = persistBook("livro-baixa-similaridade-$suffix", "Livro Baixa Similaridade")
+        val versao = persistVersion(livro.id, BookVersionStatus.READY)
+        activate(livro, versao.id)
+        // Match léxico exato do termo da query ("excêntrico"), mas embedding ortogonal ao vetor
+        // "one-hot" que FakeQueryEmbeddingClient devolve para a query (oneHotEmbedding(0)) —
+        // cosine_similarity real entre os dois vetores one-hot ortogonais é 0.0, bem abaixo do
+        // limiar default de 0.5 (plan.md, "Config nova").
+        persistChunk(versao.id, "Um personagem excêntrico aparece no capítulo final.", embedding = oneHotEmbedding(7))
+
+        val result = retrievalService.search("excêntrico", RetrievalScope.Books(setOf(livro.id)))
+
+        assertEquals(RetrievalResult.NoRelevantContext, result)
+    }
+
+    @Test
+    fun `ao menos um candidato acima do limiar produz Found com os candidatos esperados (CA7)`() {
+        val suffix = UUID.randomUUID()
+        val livro = persistBook("livro-alta-similaridade-$suffix", "Livro Alta Similaridade")
+        val versao = persistVersion(livro.id, BookVersionStatus.READY)
+        activate(livro, versao.id)
+        // Mesmo vetor one-hot da query (FakeQueryEmbeddingClient) -> cosine_similarity = 1.0,
+        // acima do limiar; o segundo chunk fica abaixo do limiar e não deveria impedir o Found.
+        val chunkRelevante = persistChunk(versao.id, "Trecho relevante sobre excêntrico.", embedding = oneHotEmbedding(0))
+        persistChunk(versao.id, "Outro trecho sobre excêntrico, porém com embedding distante.", page = 2, embedding = oneHotEmbedding(9))
+
+        val result = retrievalService.search("excêntrico", RetrievalScope.Books(setOf(livro.id)))
+
+        require(result is RetrievalResult.Found)
+        assertTrue(result.chunks.isNotEmpty(), "esperava ao menos um chunk no resultado")
+        assertTrue(
+            result.chunks.any { it.chunkId == chunkRelevante.id },
+            "esperava encontrar o chunk de alta similaridade: ${result.chunks}",
+        )
+    }
+
+    @Test
+    fun `lista de candidatos esvaziada pelo orcamento de tokens do ContextAssembler produz NoRelevantContext (CA7)`() {
+        val suffix = UUID.randomUUID()
+        val livro = persistBook("livro-estoura-orcamento-$suffix", "Livro Estoura Orçamento")
+        val versao = persistVersion(livro.id, BookVersionStatus.READY)
+        activate(livro, versao.id)
+        // tokenCount sozinho já ultrapassa DEFAULT_TOKEN_BUDGET (3000, RetrievalService) — o
+        // ContextAssembler descarta esse único candidato no corte de orçamento (CA5), reduzindo
+        // assembledRows a uma lista vazia mesmo com o DAO tendo encontrado o chunk (cosine = 1.0,
+        // acima do limiar — o ramo exercitado aqui é o de lista vazia pós-orçamento, não o de
+        // baixa similaridade).
+        persistChunk(versao.id, "Trecho sobre orçamento que jamais caberá no budget de tokens.", tokenCount = 3001)
+
+        val result = retrievalService.search("orçamento", RetrievalScope.Books(setOf(livro.id)))
+
+        assertEquals(RetrievalResult.NoRelevantContext, result)
     }
 }

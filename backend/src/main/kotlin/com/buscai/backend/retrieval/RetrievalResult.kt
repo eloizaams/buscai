@@ -1,12 +1,11 @@
 package com.buscai.backend.retrieval
 
 /**
- * Resultado de `RetrievalService.search`. Nesta task (T4), [NoRelevantContext] cobre só o caminho
- * "nenhuma `BookVersion` elegível" (escopo resolvido para um conjunto vazio, ver
- * `RetrievalScope`/`plan.md`) — o sinal completo de "sem contexto relevante" baseado na melhor
- * `cosineSimilarity` dos candidatos (CA7, `spec.md`) é T6, ainda não implementado: uma lista de
- * candidatos vazia vinda da busca híbrida também é devolvida como `Found(emptyList())` por
- * enquanto, não como `NoRelevantContext`.
+ * Resultado de `RetrievalService.search`. [NoRelevantContext] cobre dois caminhos: "nenhuma
+ * `BookVersion` elegível" (escopo resolvido para um conjunto vazio, ver `RetrievalScope`/`plan.md`,
+ * T4) e "melhor `cosineSimilarity` dos candidatos pós-`ContextAssembler` abaixo do limiar
+ * configurado" (CA7, T6) — inclui o caso de lista de candidatos vazia após dedup/orçamento, que
+ * também é tratado como `NoRelevantContext`, não `Found(emptyList())`.
  */
 sealed class RetrievalResult {
     data class Found(

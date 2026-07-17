@@ -14,9 +14,10 @@ import org.springframework.stereotype.Service
 import java.util.UUID
 
 /**
- * Valores literais de T3/T5 (`vectorCandidates`/`lexicalCandidates`/`rrfK`/`tokenBudget`) usados
- * por [RetrievalService] até T7 conectar `RetrievalProperties` (`buscai.retrieval.*`) — mesmos
- * defaults sugeridos em `specs/retrieval/plan.md`, seção "Config nova".
+ * Valores literais de T3/T5/T6 (`vectorCandidates`/`lexicalCandidates`/`rrfK`/`tokenBudget`/
+ * `minCosineSimilarity`) usados por [RetrievalService] até T7 conectar `RetrievalProperties`
+ * (`buscai.retrieval.*`) — mesmos defaults sugeridos em `specs/retrieval/plan.md`, seção "Config
+ * nova".
  */
 private const val DEFAULT_VECTOR_CANDIDATES = 50
 private const val DEFAULT_LEXICAL_CANDIDATES = 50
@@ -24,14 +25,22 @@ private const val DEFAULT_RRF_K = 60
 private const val DEFAULT_TOKEN_BUDGET = 3000
 
 /**
+ * Limiar mínimo de `HybridSearchRow.cosineSimilarity` (o maior entre os candidatos pós
+ * [ContextAssembler]) para considerar o resultado como contexto relevante (CA7). Default marcado
+ * "a calibrar" em `specs/retrieval/plan.md`, seção "Config nova" — T7 conecta
+ * `RetrievalProperties.minCosineSimilarity` (`buscai.retrieval.min-cosine-similarity`) no lugar
+ * desta constante.
+ */
+private const val DEFAULT_MIN_COSINE_SIMILARITY = 0.5
+
+/**
  * Único ponto de entrada da lógica de retrieval (`specs/retrieval/plan.md`, seção "Contratos entre
  * camadas"): resolve o escopo da busca em versões ativas buscáveis (CA2/CA6), embedda a pergunta
- * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010) e delega a busca híbrida ao
- * [HybridSearchDao] (T3).
- *
- * Ainda não implementa (tasks futuras, ver `specs/retrieval/tasks.md`): o sinal completo de "sem
- * contexto relevante" baseado em `cosineSimilarity` (CA7, T6) — aqui `NoRelevantContext` só cobre o
- * caminho "nenhuma versão elegível".
+ * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010), delega a busca híbrida ao
+ * [HybridSearchDao] (T3), passa o resultado pelo [ContextAssembler] (T5) e, por fim, compara a
+ * maior `cosineSimilarity` dos candidatos restantes contra [DEFAULT_MIN_COSINE_SIMILARITY] (CA7,
+ * T6) — abaixo do limiar (ou lista vazia), devolve `NoRelevantContext` mesmo com candidatos
+ * produzidos pelas etapas anteriores.
  */
 @Service
 class RetrievalService(
@@ -62,6 +71,11 @@ class RetrievalService(
             )
 
         val assembledRows = contextAssembler.assemble(rows, DEFAULT_TOKEN_BUDGET)
+
+        val bestCosineSimilarity = assembledRows.maxOfOrNull { it.cosineSimilarity }
+        if (bestCosineSimilarity == null || bestCosineSimilarity < DEFAULT_MIN_COSINE_SIMILARITY) {
+            return RetrievalResult.NoRelevantContext
+        }
 
         val chunks =
             assembledRows.map { row ->
