@@ -1,7 +1,11 @@
 # ADR-0001: Arquitetura geral — backend completo, app Android como cliente de chat
 
 ## Status
-Aceito — 2026-07-12
+Aceito — 2026-07-12. **Parcialmente revisto por [ADR-0011](0011-cliente-web-fino-primeiro-android-adiado.md)
+(2026-07-17)**: a decisão de arquitetura de backend abaixo continua valendo integralmente; só a
+escolha de *qual cliente é construído primeiro* mudou — um web app fino passa à frente do app
+Android (adiado, não cancelado). Onde este documento diz "o app Android" como cliente, leia-se
+"o cliente fino de chat (hoje web, no futuro possivelmente também Android)".
 
 ## Contexto
 O planejamento original (`../planejamento-app-rag-android.md`, Decisão 1) considerava três opções:

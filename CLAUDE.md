@@ -1,8 +1,13 @@
 # buscai
 
-App de perguntas e respostas sobre livros em PDF (RAG). O usuário final só faz perguntas pelo
-app Android; os livros são fornecidos e ingeridos pelo desenvolvedor via ferramenta própria no
-backend — não há import de PDF pelo app.
+App de perguntas e respostas sobre livros em PDF (RAG). O usuário final só faz perguntas por um
+cliente fino de chat; os livros são fornecidos e ingeridos pelo desenvolvedor via ferramenta
+própria no backend — não há import de PDF pelo cliente.
+
+**Cliente prioritário: web app fino, não o app Android** ([ADR-0011](docs/adr/0011-cliente-web-fino-primeiro-android-adiado.md),
+2026-07-17) — `android/` é scaffold pausado, mantido intocado; o cliente web (`web/`, HTML/CSS/JS
+puro, sem framework/build step) nasce via `/spec-feature` quando priorizado. Convenções da seção
+`android/` abaixo continuam valendo se/quando aquele trabalho for retomado.
 
 **Antes de qualquer decisão de arquitetura, leia `docs/adr/`.** É a fonte da verdade — não
 redecida modelo de embedding, vector DB, framework backend, hospedagem ou autenticação; se algo
@@ -11,10 +16,11 @@ não estiver coberto, pare e proponha um novo ADR em vez de assumir.
 ## Estrutura do repositório
 
 ```
-android/     — app Android (cliente fino de chat, Kotlin + Compose)
+android/     — app Android (cliente fino de chat, Kotlin + Compose) — scaffold, pausado (ADR-0011)
 backend/     — API + ingestão (Kotlin + Spring Boot)
 docs/adr/    — Architecture Decision Records (fonte de verdade da arquitetura)
 specs/       — constitution.md, spec.md, plan.md, tasks.md por feature (Fase 2, SDD)
+web/         — cliente web fino (ainda não criado — ADR-0011; nasce via /spec-feature)
 ```
 
 `android/` e `backend/` são dois builds Gradle **independentes** (raízes separadas) — sempre rode

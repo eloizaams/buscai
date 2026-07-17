@@ -9,10 +9,10 @@
 
 > **Concluída em 2026-07-12.** As tabelas abaixo eram o ponto de partida; a decisão final,
 > incluindo mudanças de escopo (ingestão fora do app, backend completo, Spring Boot, Neon +
-> Render/Fly, auth por chave estática, estado de conversa no servidor), está registrada e é a
-> fonte da verdade em [`adr/`](adr/) (ADR-0001 a ADR-0007). As Fases 3, 4 e 6 abaixo
-> precisam ser lidas à luz desses ADRs — a ingestão e o retrieval deixaram de ser feature do app
-> Android e viraram responsabilidade do backend.
+> Render/Fly, auth por chave estática, estado de conversa no servidor, e a revisão de 2026-07-17
+> sobre qual cliente vem primeiro), está registrada e é a fonte da verdade em [`adr/`](adr/)
+> (ADR-0001 a ADR-0011). As Fases 3, 4 e 6 abaixo precisam ser lidas à luz desses ADRs — a
+> ingestão e o retrieval deixaram de ser feature do cliente e viraram responsabilidade do backend.
 
 ### Decisão 1: onde roda o RAG
 | Opção | Descrição | Prós | Contras |
@@ -101,9 +101,17 @@ Usar o **spec-kit** (GitHub) integrado ao Claude Code, ou estrutura manual em `s
 
 ---
 
-## Fase 6 — App Android
+## Fase 6 — Cliente (web fino primeiro, app Android adiado)
 
-**Arquitetura:** MVVM + camadas limpas, Hilt, Coroutines/Flow. Módulos: `:app`, `:core:data`, `:core:domain`, `:feature:library`, `:feature:chat`, `:ingestion`, `:rag`.
+> **Revisto em 2026-07-17** — [ADR-0011](adr/0011-cliente-web-fino-primeiro-android-adiado.md):
+> o primeiro cliente construído passa a ser um **web app fino** (HTML/CSS/JS puro, sem
+> framework/build step, diretório `web/`), não o app Android. `android/` fica como scaffold
+> pausado — a seção abaixo (arquitetura MVVM/Compose, módulos, telas) permanece como referência
+> para quando o app Android for retomado, mas não é o próximo trabalho da Fase 6. A spec do
+> cliente web nasce via `/spec-feature` quando priorizada, depois do backend ter o endpoint de
+> geração/streaming (Fase 5).
+
+**Arquitetura (app Android, adiado):** MVVM + camadas limpas, Hilt, Coroutines/Flow. Módulos: `:app`, `:core:data`, `:core:domain`, `:feature:library`, `:feature:chat`, `:ingestion`, `:rag`.
 
 **Telas:**
 1. **Biblioteca** — lista de livros, status (indexando/pronto/erro), importar/remover.
