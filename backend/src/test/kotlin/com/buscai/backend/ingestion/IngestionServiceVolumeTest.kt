@@ -3,7 +3,8 @@ package com.buscai.backend.ingestion
 import com.buscai.backend.catalog.BookVersionRepository
 import com.buscai.backend.catalog.ChunkRepository
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
-import com.buscai.backend.ingestion.embedding.EmbeddingClient
+import com.buscai.backend.embedding.EmbeddingClient
+import com.buscai.backend.embedding.EmbeddingInputType
 import com.buscai.backend.ingestion.pdf.PdfFixtures
 import com.buscai.backend.ingestion.pdf.PdfTextExtractor
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -113,8 +114,10 @@ class PageBatchSizeRecorder {
  * precisa rastrear transação ativa durante a chamada, isso já é coberto por T7).
  */
 class VolumeFakeEmbeddingClient : EmbeddingClient {
-    override fun embed(texts: List<String>): List<FloatArray> =
-        texts.map { text -> FloatArray(EMBEDDING_DIMENSIONS) { i -> (text.hashCode() % 997) / 997f + i * 1e-6f } }
+    override fun embed(
+        texts: List<String>,
+        inputType: EmbeddingInputType,
+    ): List<FloatArray> = texts.map { text -> FloatArray(EMBEDDING_DIMENSIONS) { i -> (text.hashCode() % 997) / 997f + i * 1e-6f } }
 }
 
 /**

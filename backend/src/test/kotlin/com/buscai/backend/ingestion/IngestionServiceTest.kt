@@ -6,10 +6,11 @@ import com.buscai.backend.catalog.BookVersionStatus
 import com.buscai.backend.catalog.Chunk
 import com.buscai.backend.catalog.ChunkRepository
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
+import com.buscai.backend.embedding.EmbeddingClient
+import com.buscai.backend.embedding.EmbeddingClientException
+import com.buscai.backend.embedding.EmbeddingInputType
 import com.buscai.backend.ingestion.chunking.MAX_CHUNK_TOKENS
 import com.buscai.backend.ingestion.chunking.MIN_CHUNK_TOKENS
-import com.buscai.backend.ingestion.embedding.EmbeddingClient
-import com.buscai.backend.ingestion.embedding.EmbeddingClientException
 import com.buscai.backend.ingestion.pdf.PdfFixtures
 import com.buscai.backend.ingestion.pdf.PdfTextExtractor
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -195,13 +196,17 @@ class IngestionServiceTest {
     }
 
     /**
-     * Fake de [EmbeddingClient] que grava, para cada chamada, quantos textos vieram e se havia uma
+     * Fake de [EmbeddingClient] que grava, para cada chamada, quantos textos vieram, se havia uma
      * transação de banco ativa no momento da chamada — é a checagem central de T7 (nenhuma
-     * transação de banco pode ficar aberta durante a chamada de rede à Voyage, ver `plan.md`).
+     * transação de banco pode ficar aberta durante a chamada de rede à Voyage, ver `plan.md`) — e o
+     * [EmbeddingInputType] recebido, para garantir que `IngestionService` sempre passa `DOCUMENT`
+     * (ADR-0010, `specs/retrieval/tasks.md` T1) — sem essa checagem, uma troca acidental para
+     * `QUERY` (ou bug de wiring) não quebraria nenhum teste, só degradaria recall silenciosamente.
      */
     class FakeEmbeddingClient : EmbeddingClient {
         val calls = mutableListOf<List<String>>()
         val transactionActiveDuringCall = mutableListOf<Boolean>()
+        val receivedInputTypes = mutableListOf<EmbeddingInputType>()
 
         /**
          * Quando não nulo, a N-ésima chamada a [embed] (1-indexado, contada a partir do último
@@ -213,8 +218,12 @@ class IngestionServiceTest {
          */
         var failOnCallNumber: Int? = null
 
-        override fun embed(texts: List<String>): List<FloatArray> {
+        override fun embed(
+            texts: List<String>,
+            inputType: EmbeddingInputType,
+        ): List<FloatArray> {
             calls += texts
+            receivedInputTypes += inputType
             transactionActiveDuringCall += TransactionSynchronizationManager.isActualTransactionActive()
             if (failOnCallNumber == calls.size) {
                 throw EmbeddingClientException("falha simulada de embedding na chamada ${calls.size}")
@@ -258,6 +267,7 @@ class IngestionServiceTest {
     fun resetFakeEmbeddingClient() {
         fakeEmbeddingClient.calls.clear()
         fakeEmbeddingClient.transactionActiveDuringCall.clear()
+        fakeEmbeddingClient.receivedInputTypes.clear()
         fakeEmbeddingClient.failOnCallNumber = null
         extractRangeFailureSwitch.shouldFail = false
         saveAllFailureSwitch.shouldFail = false
@@ -297,6 +307,15 @@ class IngestionServiceTest {
         // Lote pequeno (2) força múltiplos lotes de embedding mesmo com poucos chunks.
         assertTrue(fakeEmbeddingClient.calls.size > 1, "esperava múltiplos lotes de embedding, teve ${fakeEmbeddingClient.calls.size}")
         assertEquals(completed.chunkCount, fakeEmbeddingClient.calls.sumOf { it.size })
+
+        // ADR-0010 (specs/retrieval/tasks.md, T1): a ingestão sempre embedda como DOCUMENT, nunca
+        // QUERY — usar o tipo errado degradaria recall silenciosamente, sem lançar erro.
+        assertTrue(
+            fakeEmbeddingClient.receivedInputTypes.isNotEmpty() &&
+                fakeEmbeddingClient.receivedInputTypes.all { it == EmbeddingInputType.DOCUMENT },
+            "esperava todas as chamadas ao EmbeddingClient com EmbeddingInputType.DOCUMENT, " +
+                "obteve: ${fakeEmbeddingClient.receivedInputTypes}",
+        )
 
         // Ponto central de T7: nenhuma transação de banco ficava aberta durante a chamada ao
         // EmbeddingClient (evita esgotar o pool de conexões em livros grandes).
@@ -572,6 +591,7 @@ class IngestionServiceTest {
         // não à primeira ingestão já concluída acima.
         fakeEmbeddingClient.calls.clear()
         fakeEmbeddingClient.transactionActiveDuringCall.clear()
+        fakeEmbeddingClient.receivedInputTypes.clear()
         fakeEmbeddingClient.failOnCallNumber = 2
 
         val differentPageTexts =

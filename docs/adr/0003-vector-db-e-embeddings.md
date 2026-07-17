@@ -44,3 +44,15 @@ código:
 - Índice HNSW usa `vector_cosine_ops` (busca por similaridade de cosseno, coerente com "cosine/HNSW"
   já citado acima) — `idx_chunk_embedding_hnsw` na mesma migration, parâmetros default do pgvector
   (não ajustados manualmente; revisar se a latência medida em produção não bater com a meta acima).
+
+## Detalhes fixados na implementação (feature de retrieval, `specs/retrieval/`)
+Registrado aqui pela T9 (`specs/retrieval/tasks.md`), 2026-07-17:
+- Busca híbrida implementada exatamente como prevista acima: `HybridSearchDao` funde ramo léxico
+  (`tsvector`/GIN, `ts_rank`) e ramo vetorial (`pgvector`/HNSW, cosine) por RRF numa única query SQL
+  nativa (T3) — nenhuma divergência de arquitetura.
+- Meta de latência (< 100 ms com ~50 mil chunks) passou a ser um **gate automatizado de CI**
+  (`HybridSearchDaoVolumeTest`, T8), medida em execução "quente" (warm-up descartado) sobre
+  Testcontainers/Postgres com `pgvector/pgvector:pg16`. Isso valida a meta no ambiente de teste,
+  não ainda uma medição em hardware de produção real (Render/Fly, ADR-0006) — se a latência de
+  produção divergir da meta, é débito técnico a registrar explicitamente em `tasks.md`, não motivo
+  para relaxar o teste (mesmo critério já fixado na T8).

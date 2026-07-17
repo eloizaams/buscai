@@ -86,9 +86,18 @@ tasks.withType<Test> {
 // processo próprio.
 val volumeTestClassName = "com.buscai.backend.ingestion.IngestionServiceVolumeTest"
 
+// T8 (`specs/retrieval/tasks.md`, CA8 `specs/retrieval/spec.md`): teste de aceite de latência
+// (`HybridSearchDaoVolumeTest`, ~50 mil chunks sintéticos + build do índice HNSW) é lento pelo
+// mesmo motivo estrutural de `volumeTest` (T11) — popular um acervo grande via Testcontainers não
+// é rápido — mas não precisa de heap restrito (não é uma prova de memória, é uma medição de
+// tempo). Isolado do mesmo jeito (excluído de `test`, incluído em `check`/`build`), em task
+// própria sem o heap enxuto de `volumeTest`.
+val retrievalVolumeTestClassName = "com.buscai.backend.retrieval.search.HybridSearchDaoVolumeTest"
+
 tasks.named<Test>("test") {
     filter {
         excludeTestsMatching(volumeTestClassName)
+        excludeTestsMatching(retrievalVolumeTestClassName)
     }
 }
 
@@ -131,6 +140,19 @@ val volumeTest =
         maxHeapSize = "256m"
     }
 
+val retrievalVolumeTest =
+    tasks.register<Test>("retrievalVolumeTest") {
+        description = "Teste de aceite de latência (T8, CA8) — ~50 mil chunks sintéticos via Testcontainers."
+        group = "verification"
+        useJUnitPlatform()
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+        filter {
+            includeTestsMatching(retrievalVolumeTestClassName)
+        }
+    }
+
 tasks.named("check") {
     dependsOn(volumeTest)
+    dependsOn(retrievalVolumeTest)
 }

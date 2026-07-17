@@ -1,4 +1,4 @@
-package com.buscai.backend.ingestion.embedding
+package com.buscai.backend.embedding
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

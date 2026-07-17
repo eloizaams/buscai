@@ -24,3 +24,45 @@ colados abaixo da linha correspondente pelo próprio agente ao final de cada rod
 [2026-07-17T11:58:43Z] eval executado
 [2026-07-17T12:12:52Z] eval executado
 [2026-07-17T12:50:16Z] eval executado
+[2026-07-17T13:07:25Z] eval executado
+[2026-07-17T14:10:42Z] eval executado
+
+## Resultado: Golden set vazio (esperado em Fase 4)
+
+**Status**: ✅ Não bloqueante — conforme T9 de `specs/retrieval/tasks.md`
+
+### Contexto
+- **Golden set**: vazio (`specs/eval/golden-set.json` tem apenas um array `questions: []`)
+  - **Motivo**: nenhum livro real foi ingerido ainda; golden set será preenchido na Fase 5 (ingestão) com 30-50 perguntas reais e suas respostas esperadas
+  - **Não é bloqueante**: T9 prevê explicitamente esse cenário — "specs/eval/golden-set.json continua vazio até haver livros reais ingeridos"
+
+### Avaliação de sanidade do pipeline (sem dados reais)
+
+#### Testes da feature
+Todos os testes de retrieval passaram:
+- `RetrievalScopeTest` ✅
+- `RetrievalServiceIntegrationTest` (Testcontainers) ✅
+- `RetrievalDebugCommandTest` ✅
+- Build + ktlint: ✅
+
+#### Cobertura de arquitetura
+Todos os componentes definidos em `specs/retrieval/plan.md` foram implementados:
+- T1: `EmbeddingClient.embed()` com `EmbeddingInputType` (DOCUMENT/QUERY) ✅
+- T2: Migration V2 com `text_search` (tsvector) + índice GIN ✅
+- T3: `HybridSearchDao` com busca vetorial + léxica + fusão RRF ✅
+- T4: `RetrievalService` com resolução de escopo + embedding de query ✅
+- T5: `ContextAssembler` com dedup de vizinhos + orçamento de tokens ✅
+- T6: Sinal de "sem contexto relevante" baseado em `minCosineSimilarity` ✅
+- T7: `RetrievalDebugCommand` + `RetrievalProperties` (config binding) ✅
+- T8: Teste de latência em ~50k chunks (CA8) ✅
+- T9: Documentação (`docs/adr/`) atualizada ✅
+
+### Próximos passos
+1. **Fase 5 (ingestão)**: Primeira vez que um livro real será ingerido (criar fixture PDF real ou synthetic)
+2. **Primeira execução do golden set**: Assim que pelo menos um livro estiver ingerido, preencher `golden-set.json` com 5-10 perguntas de teste iniciais (mínimo viável)
+3. **Regressão CI**: `rag-evaluator` será acionado em toda mudança futura em retrieval/embedding/chunking, comparando contra o histórico
+
+### Recomendação
+✅ **Aprovar para merge**: Pipeline funcional, todas as especificações implementadas, testes passando. A ausência do golden set é esperada e não bloqueante — não há teste de qualidade possível sem dados, mas não há regressão de funcionalidade existente.
+
+[2026-07-17T17:11:30Z] eval executado
