@@ -1,7 +1,11 @@
 # ADR-0007: Propriedade do estado de conversa
 
 ## Status
-Aceito — 2026-07-12
+Aceito — 2026-07-12. Nota ([ADR-0011](0011-cliente-web-fino-primeiro-android-adiado.md),
+2026-07-17): o mecanismo abaixo continua valendo, mas "UUID salvo em DataStore" é específico do
+app Android — para o cliente web (agora prioritário), o equivalente é `localStorage`/cookie. A
+spec do cliente web precisa explicitar essa escolha; não é uma mudança de decisão, só de onde o
+identificador é persistido no cliente.
 
 ## Contexto
 O `android-architect` apontou uma tensão entre "app é um cliente fino" ([ADR-0001](0001-arquitetura-geral-backend-completo.md))
