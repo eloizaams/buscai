@@ -93,13 +93,14 @@ class HybridSearchDaoIntegrationTest {
         embedding: FloatArray,
         text: String,
         page: Int = 1,
+        charOffset: Int = 0,
     ): Chunk =
         chunkRepository.save(
             Chunk(
                 id = UUID.randomUUID(),
                 bookVersionId = bookVersionId,
                 page = page,
-                charOffset = 0,
+                charOffset = charOffset,
                 tokenCount = 10,
                 text = text,
                 embedding = embedding,
@@ -118,6 +119,7 @@ class HybridSearchDaoIntegrationTest {
                 version.id,
                 oneHotEmbedding(2),
                 "O protagonista chama-se Bentinho e mora no Rio de Janeiro.",
+                charOffset = 42,
             )
 
         val result =
@@ -137,6 +139,8 @@ class HybridSearchDaoIntegrationTest {
         val rowComTermo = result.first { it.chunkId == chunkComTermo.id }
         // Não apareceu no ramo vetorial (vectorCandidates = 1 já ocupado por outro chunk) — cosineSimilarity cai para 0.0.
         assertEquals(0.0, rowComTermo.cosineSimilarity, 1e-6)
+        // charOffset persistido no chunk (T5, ContextAssembler) vem intacto na projeção da query nativa.
+        assertEquals(42, rowComTermo.charOffset)
     }
 
     @Test

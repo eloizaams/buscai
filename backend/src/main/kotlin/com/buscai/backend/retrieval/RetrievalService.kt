@@ -8,18 +8,20 @@ import com.buscai.backend.catalog.BookVersionStatus
 import com.buscai.backend.embedding.EmbeddingClient
 import com.buscai.backend.embedding.EmbeddingInputType
 import com.buscai.backend.embedding.VoyageProperties
+import com.buscai.backend.retrieval.context.ContextAssembler
 import com.buscai.backend.retrieval.search.HybridSearchDao
 import org.springframework.stereotype.Service
 import java.util.UUID
 
 /**
- * Valores literais de T3 (`vectorCandidates`/`lexicalCandidates`/`rrfK`) usados por
- * [RetrievalService] até T7 conectar `RetrievalProperties` (`buscai.retrieval.*`) — mesmos
+ * Valores literais de T3/T5 (`vectorCandidates`/`lexicalCandidates`/`rrfK`/`tokenBudget`) usados
+ * por [RetrievalService] até T7 conectar `RetrievalProperties` (`buscai.retrieval.*`) — mesmos
  * defaults sugeridos em `specs/retrieval/plan.md`, seção "Config nova".
  */
 private const val DEFAULT_VECTOR_CANDIDATES = 50
 private const val DEFAULT_LEXICAL_CANDIDATES = 50
 private const val DEFAULT_RRF_K = 60
+private const val DEFAULT_TOKEN_BUDGET = 3000
 
 /**
  * Único ponto de entrada da lógica de retrieval (`specs/retrieval/plan.md`, seção "Contratos entre
@@ -27,10 +29,9 @@ private const val DEFAULT_RRF_K = 60
  * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010) e delega a busca híbrida ao
  * [HybridSearchDao] (T3).
  *
- * Ainda não implementa (tasks futuras, ver `specs/retrieval/tasks.md`): dedup de vizinhos e
- * orçamento de tokens (`ContextAssembler`, T5) nem o sinal completo de "sem contexto relevante"
- * baseado em `cosineSimilarity` (CA7, T6) — aqui `NoRelevantContext` só cobre o caminho "nenhuma
- * versão elegível".
+ * Ainda não implementa (tasks futuras, ver `specs/retrieval/tasks.md`): o sinal completo de "sem
+ * contexto relevante" baseado em `cosineSimilarity` (CA7, T6) — aqui `NoRelevantContext` só cobre o
+ * caminho "nenhuma versão elegível".
  */
 @Service
 class RetrievalService(
@@ -39,6 +40,7 @@ class RetrievalService(
     private val embeddingClient: EmbeddingClient,
     private val voyageProperties: VoyageProperties,
     private val hybridSearchDao: HybridSearchDao,
+    private val contextAssembler: ContextAssembler,
 ) {
     fun search(
         query: String,
@@ -59,8 +61,10 @@ class RetrievalService(
                 rrfK = DEFAULT_RRF_K,
             )
 
+        val assembledRows = contextAssembler.assemble(rows, DEFAULT_TOKEN_BUDGET)
+
         val chunks =
-            rows.map { row ->
+            assembledRows.map { row ->
                 val book = eligibleVersions.getValue(row.bookVersionId)
                 RetrievedChunk(
                     chunkId = row.chunkId,

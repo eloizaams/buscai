@@ -7,6 +7,13 @@ import java.util.UUID
  * qualquer resolução de título de livro (feita depois, em `RetrievalService`/T4) ou de
  * dedup/orçamento (`ContextAssembler`/T5).
  *
+ * [charOffset] é o offset de caractere, dentro da página, de onde o conteúdo próprio do chunk
+ * começa (`Chunk.charOffset`, `catalog`) — usado por `ContextAssembler` (T5) para comparar a
+ * janela `[charOffset, charOffset + text.length)` de chunks vizinhos e detectar sobreposição
+ * significativa (dedup, CA4). A comparação só faz sentido entre candidatos da mesma
+ * [bookVersionId] **e** da mesma [page] — [charOffset] é relativo à página, não ao livro inteiro
+ * (`ContextAssembler.overlapsSignificantly` aplica os dois filtros antes de comparar janelas).
+ *
  * [cosineSimilarity] e [rrfScore] são dois números distintos, não confundir:
  * - [cosineSimilarity]: similaridade bruta do ramo vetorial (`1 - distância de cosine`). Quando o
  *   chunk só apareceu no ramo léxico (fora do top-N do ramo vetorial), vem `0.0` por decisão de
@@ -20,6 +27,7 @@ data class HybridSearchRow(
     val chunkId: UUID,
     val bookVersionId: UUID,
     val page: Int,
+    val charOffset: Int,
     val chapter: String?,
     val text: String,
     val tokenCount: Int,

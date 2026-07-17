@@ -64,7 +64,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   em `AllBooks` nem é encontrado em `Books` contendo aquele `bookId`; escopo `AllBooks` com todos
   os livros na mesma versão de embedding não filtra nada indevidamente.
 
-- [ ] **T5 — `ContextAssembler`: dedup de vizinhos + orçamento de tokens**
+- [x] **T5 — `ContextAssembler`: dedup de vizinhos + orçamento de tokens**
   `ContextAssembler.assemble(rows: List<HybridSearchRow>, tokenBudget: Int):
   List<HybridSearchRow>` (opera antes da conversão para `RetrievedChunk` — integrar em
   `RetrievalService` nesta task): ordena por `rrfScore` desc; descarta candidatos da mesma
