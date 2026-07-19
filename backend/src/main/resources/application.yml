@@ -12,14 +12,23 @@ spring:
       ddl-auto: validate
 
 buscai:
-  security:
-    # ADR-0005: chave estática enviada pelo app no header X-Api-Key.
-    api-key: ${BUSCAI_API_KEY:changeme}
+  # ADR-0005: chave estática validada por ApiKeyFilter (header X-Api-Key). Sem default de verdade
+  # — ausente/vazia é tratada pelo filtro como "negar toda requisição" (fail-closed), nunca como
+  # "aceitar qualquer coisa" (ver KDoc de ApiSecurityProperties).
+  api-key: ${BUSCAI_API_KEY:}
+  rate-limit:
+    # RateLimitFilter, "a calibrar" contra tráfego real (mesma ressalva de
+    # retrieval.min-cosine-similarity).
+    requests-per-minute: 30
   claude:
     # specs/geracao/plan.md, seção "Config nova". ANTHROPIC_API_KEY não entra aqui — o SDK oficial
     # (AnthropicOkHttpClient.fromEnv()) já lê a variável de ambiente direto, nunca via esta chave.
     rewrite-model: claude-haiku-4-5
     answer-model: claude-sonnet-5
+  generation:
+    # specs/geracao/plan.md, seção "Config nova".
+    max-tokens: 2048
+    history-turns: 6
   ai:
     voyage:
       # ADR-0003: embeddings multilíngues via Voyage AI.

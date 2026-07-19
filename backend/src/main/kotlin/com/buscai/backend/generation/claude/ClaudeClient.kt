@@ -25,7 +25,9 @@ interface ClaudeClient {
     /**
      * Gera a resposta final a partir de [systemPrompt] (instruções fixas de fundamentação/citação,
      * montadas por `GenerationService`) e [userPrompt] (pergunta final + trechos recuperados já
-     * formatados). Consome o stream de deltas de texto da Claude
+     * formatados), com `max_tokens` = [maxTokens] (`GenerationProperties.maxTokens`,
+     * `specs/geracao/plan.md` — "Config nova"; T4 é quem resolve esse valor, não mais uma constante
+     * fixa nesta camada). Consome o stream de deltas de texto da Claude
      * ([ClaudeProperties.answerModel]), invocando [onToken] uma vez por delta de texto recebido, na
      * ordem em que chegam — chamada bloqueante: só retorna quando o stream termina (com sucesso ou
      * exceção), nunca devolve nada ela mesma (o texto acumulado é responsabilidade de quem chama,
@@ -39,6 +41,7 @@ interface ClaudeClient {
     fun generate(
         systemPrompt: String,
         userPrompt: String,
+        maxTokens: Long,
         onToken: (String) -> Unit,
     )
 }

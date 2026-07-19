@@ -11,18 +11,6 @@ import org.springframework.stereotype.Component
  */
 private const val REWRITE_MAX_TOKENS = 300L
 
-/**
- * `max_tokens` da chamada de geração da resposta final. **Nota de divergência (T1,
- * `specs/geracao/tasks.md`):** a assinatura de [ClaudeClient.generate] fixada nesta task
- * (`generate(systemPrompt, userPrompt, onToken)`) não recebe `maxTokens` como parâmetro, então este
- * valor é temporariamente uma constante aqui — deliberadamente igual ao default de
- * `buscai.generation.max-tokens` (2048) documentado em `specs/geracao/plan.md` ("Config nova") para
- * `GenerationProperties`, que só nasce na T4. A T4 (`GenerationService`) precisará estender esta
- * assinatura (ou expor o valor por outro canal) para tornar isso de fato configurável via
- * `application.yml`; até lá, este valor fixo é o comportamento efetivo.
- */
-private const val ANSWER_MAX_TOKENS = 2048L
-
 private const val REWRITE_SYSTEM_PROMPT =
     "Reescreva a pergunta do usuário incorporando o contexto necessário do histórico da conversa " +
         "abaixo, de forma que a pergunta reescrita faça sentido sozinha, sem depender do histórico. " +
@@ -78,13 +66,14 @@ class AnthropicClaudeClient(
     override fun generate(
         systemPrompt: String,
         userPrompt: String,
+        maxTokens: Long,
         onToken: (String) -> Unit,
     ) {
         val params =
             MessageCreateParams
                 .builder()
                 .model(properties.answerModel)
-                .maxTokens(ANSWER_MAX_TOKENS)
+                .maxTokens(maxTokens)
                 .system(systemPrompt)
                 .addUserMessage(userPrompt)
                 .build()

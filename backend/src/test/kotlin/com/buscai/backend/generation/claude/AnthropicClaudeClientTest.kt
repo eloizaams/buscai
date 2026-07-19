@@ -107,6 +107,7 @@ class AnthropicClaudeClientTest {
         client.generate(
             systemPrompt = "responda só com base no contexto fornecido",
             userPrompt = "qual a capital da frança?",
+            maxTokens = 2048L,
             onToken = { token -> receivedTokens += token },
         )
 
@@ -122,7 +123,7 @@ class AnthropicClaudeClientTest {
 
         val ex =
             assertFailsWith<ClaudeClientException> {
-                client.generate("sistema", "pergunta") { }
+                client.generate("sistema", "pergunta", 2048L) { }
             }
 
         assertTrue(ex.message!!.contains("claude-sonnet-5"), "mensagem era: ${ex.message}")

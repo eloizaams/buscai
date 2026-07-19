@@ -66,3 +66,8 @@ Todos os componentes definidos em `specs/retrieval/plan.md` foram implementados:
 ✅ **Aprovar para merge**: Pipeline funcional, todas as especificações implementadas, testes passando. A ausência do golden set é esperada e não bloqueante — não há teste de qualidade possível sem dados, mas não há regressão de funcionalidade existente.
 
 [2026-07-17T17:11:30Z] eval executado
+[2026-07-19T12:19:56Z] eval executado
+[2026-07-19T12:29:53Z] eval executado
+[2026-07-19T12:31:49Z] eval executado
+[2026-07-19T12:46:08Z] eval executado
+[2026-07-19T12:49:51Z] eval executado

@@ -36,7 +36,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   ordem esperada; uma `Message` referenciando um `conversationId` inexistente viola a FK (teste
   negativo simples, confirma a constraint do schema).
 
-- [ ] **T3 — `config/`: `ApiKeyFilter` + `RateLimitFilter` + `WebConfig` (ADR-0005, primeira
+- [x] **T3 — `config/`: `ApiKeyFilter` + `RateLimitFilter` + `WebConfig` (ADR-0005, primeira
   implementação em código)**
   Pacote novo `com.buscai.backend.config`. `ApiSecurityProperties` (`buscai.api-key` — sem default,
   só via env `BUSCAI_API_KEY`; `buscai.rate-limit.requests-per-minute`, default 30 — "a calibrar",
@@ -57,7 +57,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   N+1-ésima com 429; IPs diferentes têm contadores independentes; `X-Forwarded-For` presente usa
   esse valor como chave, não o `remoteAddr`.
 
-- [ ] **T4 — `GenerationService`: orquestração completa**
+- [x] **T4 — `GenerationService`: orquestração completa**
   `com.buscai.backend.generation.GenerationService`, seguindo a ordem de persistência fixada em
   `specs/geracao/plan.md` ("Execução assíncrona, transação e persistência"): resolve/cria a
   `Conversation` (por `deviceId` + `conversationId` opcional); busca as últimas
