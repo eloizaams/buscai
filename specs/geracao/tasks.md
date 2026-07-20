@@ -145,7 +145,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   cada variante de resultado (sucesso, `NoRelevantContext`, erro) produz a saída esperada — teste
   unitário, sem subir o Spring context, mesmo padrão de T7 do retrieval.
 
-- [ ] **T8 — Teste de aceite de ponta a ponta via HTTP (CA1-CA11)**
+- [x] **T8 — Teste de aceite de ponta a ponta via HTTP (CA1-CA11)**
   Teste de integração (Testcontainers + `MockMvc`/`TestRestTemplate`, `ClaudeClient` fake
   determinístico) cobrindo o pipeline completo por HTTP, não unidade por unidade: pergunta com
   contexto relevante produz resposta citando livro/página (CA1); pergunta sem contexto produz a
