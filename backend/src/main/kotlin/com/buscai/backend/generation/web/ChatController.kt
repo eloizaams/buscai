@@ -3,6 +3,7 @@ package com.buscai.backend.generation.web
 import com.buscai.backend.generation.GenerationService
 import com.buscai.backend.retrieval.RetrievalScope
 import jakarta.annotation.PreDestroy
+import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
@@ -43,6 +44,17 @@ private const val CHAT_WORKER_POOL_SIZE = 4
 private const val CHAT_WORKER_QUEUE_CAPACITY = 8
 
 private const val GENERIC_ERROR_MESSAGE = "Ocorreu um erro ao gerar a resposta. Tente novamente em instantes."
+
+// Content-Type da resposta SSE, com charset UTF-8 explícito. Bug de produção descoberto na T8
+// (teste de aceite E2E): SseEmitter.extendResponse só define `Content-Type: text/event-stream` (sem
+// charset) quando o header ainda está nulo no momento em que o Spring monta a resposta — sem um
+// Content-Type já setado aqui, o StringHttpMessageConverter cai no charset default (ISO-8859-1),
+// corrompendo qualquer acento em português na resposta ("página" -> "p?gina"). Setar o Content-Type
+// já com charset=UTF-8 diretamente no HttpServletResponse, antes de criar/devolver o SseEmitter,
+// faz SseEmitter.extendResponse respeitá-lo (só sobrescreve se o Content-Type ainda for nulo) — mesmo
+// padrão de declarar UTF-8 explicitamente já usado em SecurityFilterSupport.writeSecurityError
+// (config/), adaptado aqui ao SseEmitter.
+private const val SSE_CONTENT_TYPE = "text/event-stream;charset=UTF-8"
 
 /**
  * Política de rejeição do executor dedicado de `/chat`: nunca [ThreadPoolExecutor.CallerRunsPolicy],
@@ -122,10 +134,17 @@ class ChatController(
     fun chat(
         @RequestHeader(DEVICE_ID_HEADER) deviceIdHeader: String?,
         @RequestBody request: ChatRequest,
+        httpServletResponse: HttpServletResponse,
     ): SseEmitter {
         val deviceId =
             deviceIdHeader?.takeUnless { it.isBlank() }
                 ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "cabeçalho $DEVICE_ID_HEADER ausente")
+
+        // Setado antes de criar/devolver o SseEmitter (ver KDoc de SSE_CONTENT_TYPE) — precisa
+        // acontecer aqui, não dentro de runChat (thread de worker), porque SseEmitter.extendResponse
+        // só respeita um Content-Type já presente no momento em que a resposta assíncrona é montada,
+        // logo após este método retornar.
+        httpServletResponse.contentType = SSE_CONTENT_TYPE
 
         val emitter = SseEmitter(SSE_TIMEOUT_MILLIS)
 

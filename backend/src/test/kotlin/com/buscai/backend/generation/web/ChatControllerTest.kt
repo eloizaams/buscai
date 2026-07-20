@@ -10,6 +10,7 @@ import com.buscai.backend.catalog.ChunkRepository
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
 import com.buscai.backend.embedding.EmbeddingClient
 import com.buscai.backend.embedding.EmbeddingInputType
+import com.buscai.backend.generation.GenerationService
 import com.buscai.backend.generation.claude.ClaudeClient
 import com.buscai.backend.generation.claude.ClaudeClientException
 import com.buscai.backend.generation.claude.HistoryTurn
@@ -33,6 +34,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -334,5 +336,47 @@ class ChatControllerTest {
 
         assertTrue(body.contains("event:error"), body)
         assertFalse(body.contains("event:done"), body)
+    }
+
+    /**
+     * Regressão de bug de produção descoberto na T8 (`specs/geracao/tasks.md`): sem um `Content-Type`
+     * declarado com charset explícito, `StringHttpMessageConverter` caía no charset default
+     * (ISO-8859-1), corrompendo qualquer acento em português na resposta SSE. Usa
+     * `RetrievalResult.NoRelevantContext` (escopo com um `bookId` inexistente, mesmo padrão de
+     * `GenerationServiceTest.noRelevantContextScope`) para forçar a mensagem fixa
+     * `GenerationService.NO_RELEVANT_CONTEXT_MESSAGE`, que já contém acentuação ("não",
+     * "reformulá-la") — decodificar os bytes crus como UTF-8 só reproduz o texto original
+     * exatamente se o servidor de fato escreveu em UTF-8.
+     */
+    @Test
+    fun `resposta SSE declara charset UTF-8 e preserva acentuacao`() {
+        val result =
+            mockMvc
+                .perform(
+                    post("/chat")
+                        .header("X-Api-Key", VALID_API_KEY)
+                        .header("X-Device-Id", "device-${UUID.randomUUID()}")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            chatRequestJson(
+                                "pergunta sem contexto",
+                                setOf("livro-inexistente-${UUID.randomUUID()}"),
+                            ),
+                        ),
+                ).andReturn()
+
+        awaitSseCompletion(result)
+
+        val contentType = result.response.contentType
+        assertTrue(
+            contentType != null && contentType.uppercase().contains("UTF-8"),
+            "Content-Type deveria declarar charset=UTF-8 explicitamente: $contentType",
+        )
+
+        val bodyUtf8 = String(result.response.contentAsByteArray, StandardCharsets.UTF_8)
+        assertTrue(
+            bodyUtf8.contains(GenerationService.NO_RELEVANT_CONTEXT_MESSAGE),
+            "corpo decodificado como UTF-8 deveria conter a mensagem fixa intacta, sem acentos corrompidos:\n$bodyUtf8",
+        )
     }
 }
