@@ -158,7 +158,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   persistir resposta parcial (CA10); pergunta sem `conversationId` inicia conversa nova, com
   `conversationId` continua a existente (CA11).
 
-- [ ] **T9 — `rag-evaluator` + sincronizar `docs/adr`/`specs/eval`**
+- [x] **T9 — `rag-evaluator` + sincronizar `docs/adr`/`specs/eval`**
   Rodar o subagent `rag-evaluator` contra `specs/eval/golden-set.json` (constitution.md, seção 4)
   — além de recall@k (herdado do retrieval), mede groundedness da resposta gerada, métrica nova
   que esta feature introduz; golden set vazio continua não-bloqueante (mesmo padrão de T9 do
@@ -167,6 +167,15 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   texto exato da mensagem fixa de `NoRelevantContext`, IDs de modelo usados) diverge do que está
   registrado em ADR-0004/ADR-0005/ADR-0007/`plan.md`; atualizar o documento correspondente com uma
   nota datada onde divergir, mesmo padrão já usado no fechamento da feature de retrieval.
+
+  **Nota (2026-07-20):** `rag-evaluator` rodado — golden set vazio (`specs/eval/golden-set.json`,
+  `"questions": []`), reportado como não bloqueante, mesmo padrão de `specs/retrieval/tasks.md`
+  (T9); recall@k/groundedness N/A até o primeiro livro real ser ingerido. IDs de modelo batem com
+  `plan.md` (`claude-haiku-4-5`/`claude-sonnet-5`), sem divergência. Divergências encontradas (texto
+  exato do prompt de sistema/mensagem fixa e valores finais de timeout/executor, todos só
+  documentados no código, não em `plan.md`) foram fechadas com notas datadas 2026-07-20 nas seções
+  "Sinal de sem contexto relevante", "Montagem do prompt" e "Execução assíncrona..." de `plan.md`.
+  Nenhuma divergência em `docs/adr/`.
 
 Depois de T1–T9: rodar `/review` (subagent `code-reviewer`) sobre o diff completo antes de
 qualquer commit/PR, conforme `CLAUDE.md`. Mudança em prompt de geração — rodar também o

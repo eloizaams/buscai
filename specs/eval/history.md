@@ -93,3 +93,5 @@ Todos os componentes definidos em `specs/retrieval/plan.md` foram implementados:
 [2026-07-20T16:47:31Z] eval executado
 [2026-07-20T16:49:13Z] eval executado
 [2026-07-20T16:53:42Z] eval executado
+[2026-07-20T16:57:56Z] eval executado
+[2026-07-20T16:59:54Z] eval executado

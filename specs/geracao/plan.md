@@ -134,8 +134,14 @@ surpreender aquela spec depois, não é um gap desta feature.
   gerar** — devolve direto uma mensagem fixa declarando a ausência de fundamento no acervo
   (persistida como a mensagem do assistente, como qualquer outra). Evita pagar uma chamada de
   geração cujo resultado já é conhecido (constitution.md, seção 6 — custo consciente); o texto
-  exato da mensagem fixa é responsabilidade da task que a implementa, não fixado aqui. Essa
-  mensagem fixa passa pelo **mesmo contrato de eventos SSE** do caminho normal (`conversation` →
+  exato da mensagem fixa é responsabilidade da task que a implementa, não fixado aqui.
+
+  **Nota (2026-07-20, T4/T9):** texto final implementado (`GenerationService.
+  NO_RELEVANT_CONTEXT_MESSAGE`): "Não encontrei essa informação no acervo de livros indexado até
+  agora. A pergunta pode estar fora do que já foi ingerido, ou talvez ajude reformulá-la — prefiro
+  dizer isso a inventar uma resposta sem fundamento nos livros disponíveis."
+
+  Essa mensagem fixa passa pelo **mesmo contrato de eventos SSE** do caminho normal (`conversation` →
   `token` com o texto completo num único evento, já que não há streaming real a fazer aqui → `done`)
   — o cliente nunca precisa de um caminho de renderização especial para este caso, e CA3 (entrega
   incremental) não se aplica a uma resposta que não veio da Claude.
@@ -144,6 +150,13 @@ surpreender aquela spec depois, não é um gap desta feature.
   texto** (ex. "conforme *Dom Casmurro*, p. 42, ..."); declarar explicitamente se o contexto não
   cobre algum aspecto da pergunta. O turno do usuário inclui os `RetrievedChunk` formatados (livro,
   página, capítulo, texto) seguidos da pergunta final.
+
+  **Nota (2026-07-20, T4/T9):** texto final implementado (`GenerationService.ANSWER_SYSTEM_PROMPT`):
+  "Você responde perguntas sobre livros usando SOMENTE o contexto (trechos recuperados) fornecido
+  abaixo, nunca conhecimento próprio alheio a ele. Cite o livro e a página de onde vem cada
+  informação relevante diretamente no texto da resposta (ex.: \"conforme Dom Casmurro, p. 42,
+  ...\"). Se o contexto fornecido não cobrir algum aspecto da pergunta, diga isso explicitamente na
+  resposta, em vez de inventar uma informação que não esteja nos trechos fornecidos."
 - **Streaming (CA3):** `ClaudeClient.generate(...)` devolve os deltas de texto da Messages API
   (`client.messages().createStreaming(...)`, SDK oficial — ver seção "Modelos e parâmetros"),
   consumidos sincronamente (mesmo estilo blocking já usado em todo o backend — `JdbcTemplate`,
@@ -226,6 +239,14 @@ surpreender aquela spec depois, não é um gap desta feature.
   > na thread do Tomcat) — diferente de uma falha que ocorre *durante* o pipeline (rewrite/retrieval/
   > geração), já iniciado dentro de um `SseEmitter` já devolvido, que aí sim produz `event: error`
   > (ver `ChatController.runChat`).
+
+  > **Nota (2026-07-20, T5/T9):** valores finais implementados — timeout do `SseEmitter`: 120s
+  > (`SSE_TIMEOUT_MILLIS`); `Executor` dedicado: 4 threads fixas (core == max, sem crescimento
+  > dinâmico) + fila `ArrayBlockingQueue` de capacidade 8 (`CHAT_WORKER_POOL_SIZE`/
+  > `CHAT_WORKER_QUEUE_CAPACITY`, `ChatController.kt`). Valores de partida, a calibrar contra
+  > tráfego e latência real observados em produção — mesma ressalva já registrada para outras
+  > constantes do projeto (ex. `min-cosine-similarity` do retrieval, `requests-per-minute` do rate
+  > limit).
 
 ## Modelos de dado (resumo)
 
