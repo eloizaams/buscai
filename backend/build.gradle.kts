@@ -45,6 +45,8 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     // ADR-0002: extração de PDF via Apache PDFBox (variante JVM, não a -android).
     implementation("org.apache.pdfbox:pdfbox:3.0.7")
+    // ADR-0004/specs/geracao: SDK oficial da Anthropic (Java) — geração de resposta via Claude.
+    implementation("com.anthropic:anthropic-java:2.34.0")
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")

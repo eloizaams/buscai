@@ -7,6 +7,19 @@ app Android — para o cliente web (agora prioritário), o equivalente é `local
 spec do cliente web precisa explicitar essa escolha; não é uma mudança de decisão, só de onde o
 identificador é persistido no cliente.
 
+Nota (`specs/geracao/plan.md`, 2026-07-17, revisão do `android-architect`): o texto da decisão
+abaixo fala em "um identificador de conversa local", mas as consequências já assumiam um
+`device-id` — a especificação da Fase 5 (geração) precisou de **dois identificadores distintos**,
+formalizados aqui para não deixar essa ambiguidade virar contrato implícito de cliente:
+- **`X-Device-Id`** (header HTTP, enviado em toda chamada): o "UUID gerado localmente" que este
+  ADR já previa — escopo do dono do device, é a chave usada para listar/isolar conversas
+  (`GET /conversations`).
+- **`conversationId`** (opcional, no corpo de `POST /chat`): identifica uma conversa específica
+  daquele device — ausente = nova conversa; presente = continuação. Não substitui o `X-Device-Id`,
+  é aninhado a ele (uma conversa pertence a um device).
+Isolamento continua soft (sem garantia contra um device que descubra o id de outro — parágrafo
+"Consequências" abaixo, inalterado).
+
 ## Contexto
 O `android-architect` apontou uma tensão entre "app é um cliente fino" ([ADR-0001](0001-arquitetura-geral-backend-completo.md))
 e a necessidade de histórico para query rewriting multi-turno ([ADR-0004](0004-geracao-via-proxy-backend.md)):

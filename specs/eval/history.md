@@ -66,3 +66,32 @@ Todos os componentes definidos em `specs/retrieval/plan.md` foram implementados:
 ✅ **Aprovar para merge**: Pipeline funcional, todas as especificações implementadas, testes passando. A ausência do golden set é esperada e não bloqueante — não há teste de qualidade possível sem dados, mas não há regressão de funcionalidade existente.
 
 [2026-07-17T17:11:30Z] eval executado
+[2026-07-19T12:19:56Z] eval executado
+[2026-07-19T12:29:53Z] eval executado
+[2026-07-19T12:31:49Z] eval executado
+[2026-07-19T12:46:08Z] eval executado
+[2026-07-19T12:49:51Z] eval executado
+[2026-07-19T12:52:00Z] eval executado
+[2026-07-20T15:15:21Z] eval executado
+[2026-07-20T15:18:03Z] eval executado
+[2026-07-20T15:54:41Z] eval executado
+[2026-07-20T15:59:19Z] eval executado
+[2026-07-20T16:00:37Z] eval executado
+[2026-07-20T16:04:53Z] eval executado
+[2026-07-20T16:10:30Z] eval executado
+[2026-07-20T16:12:37Z] eval executado
+[2026-07-20T16:15:43Z] eval executado
+[2026-07-20T16:19:05Z] eval executado
+[2026-07-20T16:19:08Z] eval executado
+[2026-07-20T16:20:13Z] eval executado
+[2026-07-20T16:25:13Z] eval executado
+[2026-07-20T16:25:18Z] eval executado
+[2026-07-20T16:29:23Z] eval executado
+[2026-07-20T16:30:55Z] eval executado
+[2026-07-20T16:34:49Z] eval executado
+[2026-07-20T16:43:03Z] eval executado
+[2026-07-20T16:47:31Z] eval executado
+[2026-07-20T16:49:13Z] eval executado
+[2026-07-20T16:53:42Z] eval executado
+[2026-07-20T16:57:56Z] eval executado
+[2026-07-20T16:59:54Z] eval executado
