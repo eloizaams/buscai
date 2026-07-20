@@ -16,6 +16,15 @@ class ConversationNotFoundException(
 ) : RuntimeException("Conversa $conversationId não encontrada para este device")
 
 /**
+ * Uma conversa reaberta com todo o histórico, em ordem cronológica — devolvido por
+ * [ConversationStore.findDetail] para `ConversationController` (`GET /conversations/{id}`, T6).
+ */
+data class ConversationDetail(
+    val conversation: Conversation,
+    val messages: List<Message>,
+)
+
+/**
  * Persistência de [Conversation]/[Message] usada por `GenerationService` (`specs/geracao/plan.md`,
  * seção "Execução assíncrona, transação e persistência"): cada método abre sua própria transação,
  * já que `GenerationService` roda numa thread de worker fora da sessão JPA do request (T5) — sem
@@ -64,6 +73,32 @@ class ConversationStore(
         conversationId: UUID,
         limit: Int,
     ): List<Message> = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId).takeLast(limit)
+
+    /**
+     * Conversas de [deviceId], mais recentemente atualizada primeiro — usado por
+     * `ConversationController.listConversations` (`GET /conversations`, T6), que não deve chamar
+     * [ConversationRepository] diretamente (camada de serviço, CLAUDE.md).
+     */
+    @Transactional(readOnly = true)
+    fun listByDevice(deviceId: String): List<Conversation> = conversationRepository.findByDeviceIdOrderByUpdatedAtDesc(deviceId)
+
+    /**
+     * Busca [id] e devolve seu histórico completo (mesmo finder de [recentHistory], sem o
+     * `takeLast`) só se a conversa pertence a [deviceId] — `null` tanto se [id] não existe quanto
+     * se existe mas é de outro device; a distinção de status HTTP (404 nos dois casos, ADR-0007)
+     * é responsabilidade de `ConversationController`, não deste serviço.
+     */
+    @Transactional(readOnly = true)
+    fun findDetail(
+        id: UUID,
+        deviceId: String,
+    ): ConversationDetail? {
+        val conversation =
+            conversationRepository.findById(id).orElse(null)?.takeIf { it.deviceId == deviceId }
+                ?: return null
+        val messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.id)
+        return ConversationDetail(conversation, messages)
+    }
 
     /**
      * Persiste uma [Message] de [role] em [conversation] e atualiza `Conversation.updatedAt` — o

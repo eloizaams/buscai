@@ -115,16 +115,25 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   > certo sem chamar `ConversationStore` diretamente (o que romperia `GenerationService` como única
   > porta de entrada da lógica, apontado no code-review desta task).
 
-- [ ] **T6 — `ConversationController`: `GET /conversations`, `GET /conversations/{id}`**
+- [x] **T6 — `ConversationController`: `GET /conversations`, `GET /conversations/{id}`**
   Mesmo pacote `generation.web`. `GET /conversations` (requer `X-Device-Id`, `400` se ausente):
-  lista as conversas daquele device (`ConversationRepository`, T2), ordenadas por `updatedAt` desc.
-  `GET /conversations/{id}`: devolve as mensagens da conversa (`MessageRepository`, ordenadas por
-  `createdAt` asc) só se ela pertence ao `deviceId` do header — `404` (não `403`, para não
-  confirmar a existência do id a quem não é dono) se a conversa não existe ou é de outro device.
-  Teste via `MockMvc`: listar devolve só as conversas do device do header; reabrir uma conversa
-  existente do mesmo device devolve as mensagens na ordem certa (CA7); reabrir uma conversa de
-  outro device (ou um id inexistente) devolve `404`; requisição sem `X-Device-Id` em qualquer um
-  dos dois endpoints devolve `400`.
+  lista as conversas daquele device, ordenadas por `updatedAt` desc. `GET /conversations/{id}`:
+  devolve as mensagens da conversa, ordenadas por `createdAt` asc, só se ela pertence ao `deviceId`
+  do header — `404` (não `403`, para não confirmar a existência do id a quem não é dono) se a
+  conversa não existe ou é de outro device. Teste via `MockMvc`: listar devolve só as conversas do
+  device do header; reabrir uma conversa existente do mesmo device devolve as mensagens na ordem
+  certa (CA7); reabrir uma conversa de outro device (ou um id inexistente) devolve `404`;
+  requisição sem `X-Device-Id` em qualquer um dos dois endpoints devolve `400`.
+
+  > **Nota (2026-07-20, T6, correção pós-review):** `ConversationController` depende só de
+  > `ConversationStore` (mesmo padrão de `ChatController` dependendo só de `GenerationService`) —
+  > nunca injeta `ConversationRepository`/`MessageRepository` diretamente (CLAUDE.md, "sem acesso
+  > direto a repositório fora da camada de serviço"). `ConversationStore` ganhou dois métodos de
+  > leitura para isso: `listByDevice` (delega a `ConversationRepository.
+  > findByDeviceIdOrderByUpdatedAtDesc`, T2) e `findDetail` (busca a conversa por id, confere o
+  > `deviceId` e, se pertence, busca as mensagens via o mesmo finder que `recentHistory` já usa —
+  > `null` tanto para "não existe" quanto para "é de outro device", a distinção de status HTTP
+  > continua no controller).
 
 - [ ] **T7 — `GenerationDebugCommand`: CLI de debug**
   `com.buscai.backend.generation.cli.GenerationDebugCommand`, mesmo padrão de
