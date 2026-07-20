@@ -33,6 +33,16 @@ Regras:
    (`ThreadSafeMockingProgress`) e quebra outros testes da mesma classe. Prefira um decorator por
    delegação de interface Kotlin (`by`) que encaminha para o repositório real e injeta a falha
    quando precisar.
+9. No backend, um `@RestController`/`@Controller` **nunca** injeta ou chama um `Repository`
+   diretamente — mesmo para leitura pura, mesmo que a task descreva o endpoint citando o nome do
+   repositório (ex. "lista via `XRepository`"). O controller depende só de uma classe da camada de
+   serviço (o `Service`/`Store` já existente ou um método novo nele); se a task não previu essa
+   leitura ali, adicione o método ao serviço em vez de acessar o repositório do controller. Trate o
+   nome do repositório na descrição da task como atalho, não como instrução literal de arquitetura.
+   Isso já se repetiu 2 vezes na mesma feature (`specs/geracao/`): `ChatController` chamando
+   `ConversationStore` direto em vez de só `GenerationService` (T5), depois `ConversationController`
+   chamando `ConversationRepository`/`MessageRepository` direto (T6) — ambos só pegos depois pelo
+   `code-reviewer`, cada um custando uma rodada extra de correção.
 
 Ao terminar, resuma: o que foi alterado, quais testes rodaram e o resultado, e qual item do
 tasks.md deve ser marcado como concluído — e marque esse item você mesmo no `tasks.md` (`- [ ]` →
