@@ -6,7 +6,7 @@ Ordem sequencial — cada item cabe numa sessão de implementação. T1-T2 em `b
 manual via `/run` no navegador ao final de cada uma, registrando o que foi testado). T6 fecha com
 verificação end-to-end de todos os CAs + `/review`.
 
-- [ ] **T1 — Backend: `GET /books`**
+- [x] **T1 — Backend: `GET /books`**
   Pacote `com.buscai.backend.catalog`: `BookService` novo (`listAvailable(): List<Book>` —
   combina `BookRepository`+`BookVersionRepository`, filtra por versão ativa com
   `BookVersionStatus.READY`, ordena por título; ver `plan.md`, seção "Contratos entre camadas",
