@@ -69,6 +69,19 @@ kotlin {
     }
 }
 
+// specs/cliente-web/plan.md, seção "Arquivos estáticos": copia web/ (raiz do repo, paralelo a
+// backend/) para dentro de build/resources/main/static/, para o Spring Boot servir via seu
+// resource handler default de classpath:/static/** — sem WebMvcConfigurer/addResourceHandlers
+// customizado. web/ continua sendo a única fonte da verdade dos arquivos, versionada uma vez só.
+tasks.register<Copy>("copyWebStatic") {
+    from(rootDir.resolve("../web"))
+    into(layout.buildDirectory.dir("resources/main/static"))
+}
+
+tasks.named("processResources") {
+    dependsOn("copyWebStatic")
+}
+
 allOpen {
     annotation("jakarta.persistence.Entity")
     annotation("jakarta.persistence.MappedSuperclass")

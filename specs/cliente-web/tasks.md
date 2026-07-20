@@ -19,7 +19,7 @@ verificação end-to-end de todos os CAs + `/review`.
   `BookControllerTest` (`MockMvc` — sem `X-Api-Key` válido, `401`; com chave válida, lista os
   livros disponíveis no formato esperado).
 
-- [ ] **T2 — Backend: servir `web/` same-origin**
+- [x] **T2 — Backend: servir `web/` same-origin**
   `backend/build.gradle.kts`: task `copyWebStatic` (`Copy`, de `rootDir.resolve("../web")` para
   `layout.buildDirectory.dir("resources/main/static")`), `processResources` depende dela (ver
   `plan.md`, seção "Arquivos estáticos"). Nesta task `web/` ainda não existe de verdade — criar só
