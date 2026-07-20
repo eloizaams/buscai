@@ -73,9 +73,15 @@ class GenerationService(
 
     /**
      * Processa uma pergunta ([query]) de [deviceId] na conversa [conversationId] (`null` = conversa
-     * nova, CA11) restrita a [scope] (CA6). [onToken] é invocado uma vez por delta de texto — tanto
-     * para os deltas reais de [ClaudeClient.generate] quanto, num único evento, para a mensagem fixa
-     * de [RetrievalResult.NoRelevantContext] (`plan.md`: "mesmo contrato de eventos SSE do caminho
+     * nova, CA11) restrita a [scope] (CA6). [onConversationResolved] é invocado uma única vez, logo
+     * após a conversa ser resolvida/criada — antes de qualquer chamada de rewrite/retrieval/geração
+     * — com o id definitivo e se ela é nova nesta chamada (`conversationId` de entrada era `null`);
+     * existe para que o chamador (T5, `ChatController`) saiba emitir `event: conversation` no
+     * momento certo **sem precisar chamar [ConversationStore] por conta própria** (`GenerationService`
+     * continua sendo a única porta de entrada da lógica, `specs/geracao/plan.md`, "Contratos entre
+     * camadas"). [onToken] é invocado uma vez por delta de texto — tanto para os deltas reais de
+     * [ClaudeClient.generate] quanto, num único evento, para a mensagem fixa de
+     * [RetrievalResult.NoRelevantContext] (`plan.md`: "mesmo contrato de eventos SSE do caminho
      * normal").
      */
     fun answer(
@@ -83,9 +89,11 @@ class GenerationService(
         conversationId: UUID?,
         query: String,
         scope: RetrievalScope,
+        onConversationResolved: (conversationId: UUID, isNew: Boolean) -> Unit = { _, _ -> },
         onToken: (String) -> Unit = {},
     ): GenerationAnswer {
         val conversation = conversationStore.resolveConversation(deviceId, conversationId)
+        onConversationResolved(conversation.id, conversationId == null)
         val history = conversationStore.recentHistory(conversation.id, generationProperties.historyTurns)
 
         conversationStore.appendMessage(conversation, MessageRole.USER, query)

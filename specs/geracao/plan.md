@@ -215,6 +215,18 @@ surpreender aquela spec depois, não é um gap desta feature.
   `SseEmitter` com um evento `error` e HTTP `503`, em vez de bloquear uma thread do Tomcat
   (`CallerRunsPolicy` seria o oposto do que se quer aqui) ou enfileirar sem limite.
 
+  > **Nota (2026-07-20, T5):** implementado como `503` HTTP puro (`ResponseStatusException`), sem
+  > nunca criar/emitir nada pelo `SseEmitter` — não como um `event: error` dentro de um stream SSE já
+  > aberto. `ChatController.chat` tenta submeter o trabalho ao executor **antes** de devolver o
+  > `SseEmitter` ao container Servlet; se a fila está cheia, a rejeição vira a exceção síncrona que
+  > produz o `503` diretamente, e o `SseEmitter` criado localmente nunca chega a ser retornado/
+  > processado. Decisão confirmada no code-review da T5: mais simples, e semanticamente mais correto
+  > para um cliente `EventSource` real, que nunca deveria receber um stream SSE parcialmente aberto
+  > só para comunicar um erro que aconteceu *antes* do stream começar (saturação do executor, ainda
+  > na thread do Tomcat) — diferente de uma falha que ocorre *durante* o pipeline (rewrite/retrieval/
+  > geração), já iniciado dentro de um `SseEmitter` já devolvido, que aí sim produz `event: error`
+  > (ver `ChatController.runChat`).
+
 ## Modelos de dado (resumo)
 
 | Tipo | Campos-chave | Observação |

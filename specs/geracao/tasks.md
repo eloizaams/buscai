@@ -89,7 +89,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   `Conversation.updatedAt` — o finder `findByDeviceIdOrderByUpdatedAtDesc` (T2) só ordena
   corretamente `GET /conversations` (T6) se esse campo refletir a última atividade real.
 
-- [ ] **T5 — `ChatController`: `POST /chat` via `SseEmitter`**
+- [x] **T5 — `ChatController`: `POST /chat` via `SseEmitter`**
   Pacote `com.buscai.backend.generation.web`. `ChatRequest` (DTO: `conversationId: UUID?`,
   `query: String`, `bookIds: Set<String>?`) e o contrato de eventos SSE (`event: conversation` com
   o id — só quando uma conversa nova foi criada —, `event: token` por delta de texto, `event: done`
@@ -103,9 +103,17 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   uma thread do Tomcat). Teste via `MockMvc`/`TestRestTemplate` (Spring context, `ClaudeClient` fake
   no lugar do real): requisição sem `X-Api-Key` válido nunca chega ao controller (barrada por T3,
   `401`); sem `X-Device-Id` → `400`; conversa nova recebe `event: conversation` com um id antes dos
-  `event: token`; os deltas chegam na ordem certa seguidos de `event: done`; forçar uma falha no
-  `ClaudeClient` fake produz `event: error` sem nenhum `event: token` incompleto sendo apresentado
-  como final.
+  `event: token`; os deltas chegam na ordem certa seguidos de `event: done`; conversa existente não
+  recebe `event: conversation`; forçar uma falha no `ClaudeClient` fake produz `event: error` sem
+  nenhum `event: token` incompleto sendo apresentado como final.
+
+  > **Nota (2026-07-20, T5):** saturação do executor devolve `503` HTTP puro (sem `event: error`
+  > via SSE) — ver nota equivalente em `plan.md`, seção "Execução assíncrona, transação e
+  > persistência". Além disso, `GenerationService.answer` ganhou um parâmetro
+  > `onConversationResolved: (conversationId, isNew) -> Unit`, chamado antes de qualquer rewrite/
+  > retrieval/geração: é assim que `ChatController` sabe emitir `event: conversation` no momento
+  > certo sem chamar `ConversationStore` diretamente (o que romperia `GenerationService` como única
+  > porta de entrada da lógica, apontado no code-review desta task).
 
 - [ ] **T6 — `ConversationController`: `GET /conversations`, `GET /conversations/{id}`**
   Mesmo pacote `generation.web`. `GET /conversations` (requer `X-Device-Id`, `400` se ausente):
