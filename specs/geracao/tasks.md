@@ -135,7 +135,7 @@ final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md`).
   > `null` tanto para "não existe" quanto para "é de outro device", a distinção de status HTTP
   > continua no controller).
 
-- [ ] **T7 — `GenerationDebugCommand`: CLI de debug**
+- [x] **T7 — `GenerationDebugCommand`: CLI de debug**
   `com.buscai.backend.generation.cli.GenerationDebugCommand`, mesmo padrão de
   `RetrievalDebugCommand` (`specs/retrieval/`): `CommandLineRunner` sob `@Profile("generation-debug")`,
   parseia `--query` (obrigatório), `--books` (opcional) e `--conversation-id` (opcional — sem ele,
