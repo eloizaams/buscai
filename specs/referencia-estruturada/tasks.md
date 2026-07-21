@@ -112,7 +112,7 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   simular um evento SSE `sources` chegando no meio do stream e confirmar que o texto da resposta
   renderizada não é afetado.
 
-- [ ] **T7 — Teste de aceite de ponta a ponta (CA1-CA8)**
+- [x] **T7 — Teste de aceite de ponta a ponta (CA1-CA8)**
   Teste de integração (Testcontainers + `MockMvc`/`TestRestTemplate`, `ClaudeClient` fake
   determinístico) cobrindo o pipeline completo: ingerir um pequeno acervo sintético com
   `referenceType = NUMBERED_ITEM` (via `IngestionService`, não via CLI) contendo ao menos um item
