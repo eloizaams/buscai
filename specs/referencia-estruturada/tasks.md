@@ -56,7 +56,7 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   `IngestArgsParserTest` novo(s) caso(s) para a flag nova (ausente, valor válido de cada estilo,
   valor inválido → erro).
 
-- [ ] **T3 — Retrieval propaga `reference`/`referenceType`**
+- [x] **T3 — Retrieval propaga `reference`/`referenceType`**
   `RetrievedChunk.kt`, `HybridSearchRow.kt`: `chapter: String?` → `reference: String?` +
   `referenceType: ReferenceType?`. `HybridSearchDao`: `HYBRID_SEARCH_SQL` seleciona
   `ch.reference`/`ch.reference_type` em vez de `ch.chapter`; `ROW_MAPPER` lê `reference` (string) e

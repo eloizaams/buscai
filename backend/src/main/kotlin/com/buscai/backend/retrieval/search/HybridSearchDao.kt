@@ -1,5 +1,6 @@
 package com.buscai.backend.retrieval.search
 
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -82,7 +83,8 @@ class HybridSearchDao(
                     bookVersionId = rs.getObject("book_version_id", UUID::class.java),
                     page = rs.getInt("page"),
                     charOffset = rs.getInt("char_offset"),
-                    chapter = rs.getString("chapter"),
+                    reference = rs.getString("reference"),
+                    referenceType = rs.getString("reference_type")?.let { ReferenceType.valueOf(it) },
                     text = rs.getString("text"),
                     tokenCount = rs.getInt("token_count"),
                     cosineSimilarity = rs.getDouble("cosine_similarity"),
@@ -139,7 +141,8 @@ class HybridSearchDao(
                 ch.book_version_id AS book_version_id,
                 ch.page AS page,
                 ch.char_offset AS char_offset,
-                ch.chapter AS chapter,
+                ch.reference AS reference,
+                ch.reference_type AS reference_type,
                 ch.text AS text,
                 ch.token_count AS token_count,
                 COALESCE(vr.cosine_similarity, 0.0) AS cosine_similarity,

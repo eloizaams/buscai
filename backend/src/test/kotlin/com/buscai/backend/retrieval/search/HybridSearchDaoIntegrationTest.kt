@@ -8,6 +8,7 @@ import com.buscai.backend.catalog.BookVersionStatus
 import com.buscai.backend.catalog.Chunk
 import com.buscai.backend.catalog.ChunkRepository
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -94,6 +95,8 @@ class HybridSearchDaoIntegrationTest {
         text: String,
         page: Int = 1,
         charOffset: Int = 0,
+        reference: String? = null,
+        referenceType: ReferenceType? = null,
     ): Chunk =
         chunkRepository.save(
             Chunk(
@@ -104,6 +107,8 @@ class HybridSearchDaoIntegrationTest {
                 tokenCount = 10,
                 text = text,
                 embedding = embedding,
+                reference = reference,
+                referenceType = referenceType,
             ),
         )
 
@@ -222,5 +227,52 @@ class HybridSearchDaoIntegrationTest {
         // rowOrtogonal aqui é cosine similarity genuína, não o placeholder de "não disponível".
         assertFalse(rowIdentico.matchedLexicalBranch)
         assertFalse(rowOrtogonal.matchedLexicalBranch)
+    }
+
+    @Test
+    fun `chunk persistido com reference e referenceType (NUMBERED_ITEM ou CHAPTER) volta intacto na HybridSearchRow`() {
+        val version = persistReadyVersion("livro-referencia-${UUID.randomUUID()}")
+        val queryVector = oneHotEmbedding(0)
+        val chunkItemNumerado =
+            persistChunk(
+                version.id,
+                oneHotEmbedding(0),
+                "Que se atribui à alma humana desígnio depois da morte.",
+                reference = "157",
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+        val chunkCapitulo =
+            persistChunk(
+                version.id,
+                oneHotEmbedding(1),
+                "O momento da morte e a separação entre alma e corpo.",
+                reference = "Capítulo XII",
+                referenceType = ReferenceType.CHAPTER,
+            )
+        // Chunk sem referência estruturada — confirma que reference/referenceType nulos continuam
+        // vindo nulos do ROW_MAPPER (comportamento pré-existente, sem regressão).
+        val chunkSemReferencia = persistChunk(version.id, oneHotEmbedding(2), "Trecho de um livro sem --reference-style.")
+
+        val result =
+            hybridSearchDao.search(
+                queryVector = queryVector,
+                queryText = "termo-inexistente-nos-textos",
+                eligibleBookVersionIds = listOf(version.id),
+                vectorCandidates = 3,
+                lexicalCandidates = 3,
+                rrfK = 60,
+            )
+
+        val rowItemNumerado = result.first { it.chunkId == chunkItemNumerado.id }
+        assertEquals("157", rowItemNumerado.reference)
+        assertEquals(ReferenceType.NUMBERED_ITEM, rowItemNumerado.referenceType)
+
+        val rowCapitulo = result.first { it.chunkId == chunkCapitulo.id }
+        assertEquals("Capítulo XII", rowCapitulo.reference)
+        assertEquals(ReferenceType.CHAPTER, rowCapitulo.referenceType)
+
+        val rowSemReferencia = result.first { it.chunkId == chunkSemReferencia.id }
+        assertEquals(null, rowSemReferencia.reference)
+        assertEquals(null, rowSemReferencia.referenceType)
     }
 }

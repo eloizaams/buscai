@@ -10,6 +10,7 @@ import com.buscai.backend.catalog.ChunkRepository
 import com.buscai.backend.catalog.EMBEDDING_DIMENSIONS
 import com.buscai.backend.embedding.EmbeddingClient
 import com.buscai.backend.embedding.EmbeddingInputType
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -144,6 +145,8 @@ class RetrievalServiceIntegrationTest {
         page: Int = 1,
         tokenCount: Int = 10,
         embedding: FloatArray = oneHotEmbedding(0),
+        reference: String? = null,
+        referenceType: ReferenceType? = null,
     ): Chunk =
         chunkRepository.save(
             Chunk(
@@ -154,6 +157,8 @@ class RetrievalServiceIntegrationTest {
                 tokenCount = tokenCount,
                 text = text,
                 embedding = embedding,
+                reference = reference,
+                referenceType = referenceType,
             ),
         )
 
@@ -433,5 +438,27 @@ class RetrievalServiceIntegrationTest {
         val result = retrievalService.search("orçamento", RetrievalScope.Books(setOf(livro.id)))
 
         assertEquals(RetrievalResult.NoRelevantContext, result)
+    }
+
+    @Test
+    fun `RetrievedChunk final carrega reference e referenceType persistidos no chunk (ADR-0013)`() {
+        val suffix = UUID.randomUUID()
+        val livro = persistBook("livro-dos-espiritos-$suffix", "O Livro dos Espíritos")
+        val versao = persistVersion(livro.id, BookVersionStatus.READY)
+        activate(livro, versao.id)
+        val chunkItemNumerado =
+            persistChunk(
+                versao.id,
+                "Que se atribui à alma humana desígnio depois da morte.",
+                reference = "157",
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+
+        val result = retrievalService.search("morte", RetrievalScope.Books(setOf(livro.id)))
+
+        require(result is RetrievalResult.Found)
+        val chunk = result.chunks.first { it.chunkId == chunkItemNumerado.id }
+        assertEquals("157", chunk.reference)
+        assertEquals(ReferenceType.NUMBERED_ITEM, chunk.referenceType)
     }
 }

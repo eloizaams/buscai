@@ -140,8 +140,8 @@ class GenerationService(
     ): String {
         val chunksBlock =
             chunks.joinToString(separator = "\n\n") { chunk ->
-                val chapterInfo = chunk.chapter?.let { " — capítulo: $it" } ?: ""
-                "[${chunk.bookTitle}, p. ${chunk.page}$chapterInfo]\n${chunk.text}"
+                val referenceInfo = chunk.reference?.let { " — capítulo: $it" } ?: ""
+                "[${chunk.bookTitle}, p. ${chunk.page}$referenceInfo]\n${chunk.text}"
             }
         return "Trechos recuperados:\n\n$chunksBlock\n\nPergunta: $query"
     }
