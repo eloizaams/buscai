@@ -102,3 +102,46 @@ Todos os componentes definidos em `specs/retrieval/plan.md` foram implementados:
 [2026-07-21T00:31:05Z] eval executado
 [2026-07-21T00:42:45Z] eval executado
 [2026-07-21T00:53:15Z] eval executado
+[2026-07-21T01:31:10Z] eval executado
+[2026-07-21T10:41:18Z] eval executado
+[2026-07-21T11:11:33Z] eval executado
+
+## Resultado: Golden set preenchido (referencia-estruturada T8), avaliação real não executada
+
+**Status**: ⚠️ Gate não executado de fato — ver detalhe completo em `$notaLivroDosEspiritos`,
+`specs/eval/golden-set.json`
+
+### Contexto
+- **Golden set**: deixa de estar vazio — `specs/eval/golden-set.json` ganhou 3 casos reais
+  (`espiritos-001`/`espiritos-002`/`espiritos-003`) cobrindo *O Livro dos Espíritos* (livro
+  `numbered-item`), com `expected_sources` no formato `bookId`/`bookTitle`/`reference`/
+  `referenceType` (`SourceItem`, `ChatEvent.kt`), substituindo o formato antigo por página/capítulo.
+- **Avaliação real (recall@k/groundedness) não foi executada nesta sessão** — dois motivos, ambos
+  bloqueantes neste ambiente:
+  1. O PDF real de *O Livro dos Espíritos* não está commitado no repo (ingestão sempre lê de um
+     `--file` local, nunca de um arquivo versionado, ADR-0002/ADR-0008) e não há cópia dele neste
+     ambiente de execução.
+  2. Rodar o `rag-evaluator` de fato (embeddings Voyage + geração Claude reais) exige
+     `VOYAGE_API_KEY`/`ANTHROPIC_API_KEY`, ambas ausentes neste ambiente sandbox.
+- Os valores de `reference`/`expected_answer_gist` dos 3 casos novos são uma aproximação de boa-fé
+  da estrutura conhecida do livro (catecismo de perguntas numeradas), **não conferidos contra a
+  paginação/numeração exata da edição que será de fato ingerida** — pendente de correção quando a
+  ingestão real acontecer (ver `$notaLivroDosEspiritos` para o texto completo da ressalva).
+
+### Avaliação de sanidade do pipeline (sem dados reais, mesmo proxy da Fase 4)
+Suíte de testes do backend rodada como proxy de regressão (nenhum número de recall/groundedness foi
+medido nem deve ser inferido a partir daqui):
+- Testes direcionados (`Chunker*`, `ReferenceAnnotator*`, `ChunkValidator*`, `IngestArgsParser*`,
+  `IngestionService*`, `HybridSearchDao*`, `RetrievalService*`, `GenerationService*`,
+  `ChatController*`, `ReferenciaEstruturadaAcceptance*`): ✅ `BUILD SUCCESSFUL`
+- Suíte completa (`./gradlew test`, todos os módulos, incluindo Testcontainers): ✅ `BUILD
+  SUCCESSFUL`, sem regressão
+
+### Recomendação
+⚠️ **Não bloqueante para esta sessão, mas pendente de reexecução real**: aprovar T8 com a ressalva
+registrada em três lugares (`golden-set.json`, `tasks.md` T8, aqui) — nenhum número de qualidade foi
+inventado. Assim que o livro for ingerido de verdade (`--book-id=o-livro-dos-espiritos
+--reference-style=numbered-item`) com `VOYAGE_API_KEY`/`ANTHROPIC_API_KEY` disponíveis, rodar o
+`rag-evaluator` de fato contra os 3 casos novos e corrigir `reference`/`expected_answer_gist` no
+golden set se divergirem do que a ingestão real produzir.
+[2026-07-21T11:54:07Z] eval executado

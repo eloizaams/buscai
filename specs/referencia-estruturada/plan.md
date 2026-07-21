@@ -204,6 +204,13 @@ descrito no ADR-0013 seção 3. `referenceType`, quando presente, serializa como
 (`"CHAPTER"` / `"NUMBERED_ITEM"`) — comportamento padrão do Jackson para enum Kotlin, sem
 customização.
 
+> **Nota (2026-07-21, T8):** o import real implementado (`ChatController.kt`) é
+> `tools.jackson.databind.ObjectMapper` (Jackson 3), não `com.fasterxml.jackson.databind.ObjectMapper`
+> (Jackson 2) como descrito acima — o Spring Boot 4 deste projeto autoconfigura o bean `ObjectMapper`
+> de `tools.jackson`; `com.fasterxml.jackson` está presente só como dependência transitiva, sem bean
+> próprio. Comportamento de serialização (JSON gerado, nome do enum) idêntico ao descrito nesta
+> seção — só o pacote do import muda.
+
 `sendChatEvent` ganha o ramo:
 ```kotlin
 is ChatEvent.Sources -> SseEmitter.event().name("sources").data(objectMapper.writeValueAsString(event))

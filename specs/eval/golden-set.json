@@ -1,18 +1,66 @@
 {
-  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). Preencher com 30-50 perguntas reais assim que o primeiro livro for ingerido. Cada item segue o schema do exemplo abaixo. O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças.",
+  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças. Preenchido pela primeira vez em specs/referencia-estruturada/tasks.md T8 (2026-07-21) com 3 casos sobre 'O Livro dos Espíritos' (livro numbered-item real) — ver $notaLivroDosEspiritos abaixo antes de tratar os 3 casos como executáveis de verdade neste ambiente.",
+  "$notaLivroDosEspiritos": "Estes 3 casos são o ponto de partida citado em specs/referencia-estruturada/plan.md ('Gate de avaliação') e docs/adr/0013-...md (seção 4) — não foram (ainda) rodados contra uma ingestão real neste ambiente: (1) o PDF de 'O Livro dos Espíritos' não está commitado no repo (ingestão sempre lê de um --file local, nunca de um arquivo versionado, ADR-0002/ADR-0008) e não há cópia dele neste ambiente de execução; (2) rodar o rag-evaluator de fato (embeddings Voyage + geração Claude reais) exige VOYAGE_API_KEY/ANTHROPIC_API_KEY, ausentes neste ambiente sandbox. 'reference'/'referenceType' e o texto de expected_answer_gist abaixo são uma aproximação de boa-fé da estrutura conhecida do livro (catecismo de perguntas numeradas, com um bloco de perguntas sobre a morte/retorno à vida espírita nessa faixa de numeração) — não foram conferidos contra a paginação/numeração exata da edição que será de fato ingerida. Quando o livro for ingerido de verdade (--book-id=o-livro-dos-espiritos --reference-style=numbered-item), reexecutar o rag-evaluator e corrigir 'reference'/expected_answer_gist se divergirem do que a ingestão real produzir.",
   "schema_example": {
     "id": "ex-001",
     "question": "Pergunta em linguagem natural como o usuário faria no app",
     "expected_answer_gist": "Núcleo factual que a resposta precisa conter para ser considerada correta",
     "expected_sources": [
       {
-        "book_id": "slug-do-livro",
-        "pages": [12, 13],
-        "chapter": "3"
+        "bookId": "slug-do-livro",
+        "bookTitle": "Título do livro",
+        "reference": "3",
+        "referenceType": "NUMBERED_ITEM"
       }
     ],
     "scope": "all | slug-do-livro",
-    "notes": "Opcional: por que esta pergunta está no set (ex.: nome próprio, termo exato, multi-chunk)"
+    "notes": "Opcional: por que esta pergunta está no set (ex.: nome próprio, termo exato, multi-chunk). expected_sources segue os campos citáveis de SourceItem (ChatEvent.kt): bookId/bookTitle/reference/referenceType — chunkId e text ficam de fora de propósito (não são previsíveis antes da ingestão real; o match de recall é por bookId+reference+referenceType, nunca por página, ADR-0013)."
   },
-  "questions": []
+  "questions": [
+    {
+      "id": "espiritos-001",
+      "question": "Qual a pergunta 157 do Livro dos Espíritos?",
+      "expected_answer_gist": "A resposta deve citar o livro (O Livro dos Espíritos) e o número do item 157 diretamente no texto, sem mencionar página, com o conteúdo do item — ligado à morte como destruição do corpo material (invólucro), não do espírito.",
+      "expected_sources": [
+        {
+          "bookId": "o-livro-dos-espiritos",
+          "bookTitle": "O Livro dos Espíritos",
+          "reference": "157",
+          "referenceType": "NUMBERED_ITEM"
+        }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Lookup direto por número de item exato (CA4/CA5 de specs/referencia-estruturada/spec.md) — a citação deve trazer '157' isolado, nunca um intervalo, já que a pergunta pede um item específico. Ver $notaLivroDosEspiritos: reference/conteúdo aproximados, pendente de ingestão real."
+    },
+    {
+      "id": "espiritos-002",
+      "question": "Qual a pergunta 158 do Livro dos Espíritos?",
+      "expected_answer_gist": "A resposta deve citar o livro e o item 158 (ou um intervalo que o contenha, ex. '158–159', se o chunk recuperado agrupar itens curtos consecutivos), sem mencionar página, com o conteúdo do item.",
+      "expected_sources": [
+        {
+          "bookId": "o-livro-dos-espiritos",
+          "bookTitle": "O Livro dos Espíritos",
+          "reference": "158",
+          "referenceType": "NUMBERED_ITEM"
+        }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Mesmo padrão de espiritos-001, mas cobrindo o caso em que o chunker pode ter agrupado 158 com um item vizinho curto num intervalo (ADR-0013 seção 4) — o recall deve considerar sucesso um reference que contenha '158', isolado ou em intervalo. Ver $notaLivroDosEspiritos."
+    },
+    {
+      "id": "espiritos-003",
+      "question": "O que acontece no momento da morte?",
+      "expected_answer_gist": "A morte é a destruição apenas do corpo material (o invólucro mais grosseiro), não do espírito — o espírito se separa do corpo e continua existindo. Pergunta semântica (não lookup direto de número), então pode legitimamente recuperar mais de um item da mesma faixa de numeração sobre o tema.",
+      "expected_sources": [
+        {
+          "bookId": "o-livro-dos-espiritos",
+          "bookTitle": "O Livro dos Espíritos",
+          "reference": "157",
+          "referenceType": "NUMBERED_ITEM"
+        }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Groundedness é o critério principal aqui (pergunta em linguagem livre, não lookup de item); recall@k é satisfeito se algum item da faixa de numeração sobre a morte aparecer no top-k, não necessariamente o 157 exato. Ver $notaLivroDosEspiritos."
+    }
+  ]
 }

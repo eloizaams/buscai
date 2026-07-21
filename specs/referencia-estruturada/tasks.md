@@ -127,7 +127,10 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   nunca omitido (CA6); ingestão sem `--reference-style` continua idêntica ao comportamento anterior
   a esta feature, reaproveitando fixtures/testes já existentes de `specs/ingestao-pdf/` (CA7).
 
-- [ ] **T8 — `golden-set.json`, `rag-evaluator` e sincronização de docs**
+- [x] **T8 — `golden-set.json`, `rag-evaluator` e sincronização de docs**
+  > **Nota (2026-07-21):** o gate do `rag-evaluator` não rodou de verdade nesta sessão — faltam
+  > `VOYAGE_API_KEY`/`ANTHROPIC_API_KEY` e o PDF real do livro no ambiente; ver
+  > `$notaLivroDosEspiritos` em `specs/eval/golden-set.json` para o detalhe completo.
   Adicionar a `specs/eval/golden-set.json` casos cobrindo um livro `numbered-item` real (*O Livro
   dos Espíritos* — as perguntas "qual a pergunta 157?", "qual a pergunta 158?" e "o que acontece no
   momento da morte?" desta sessão são o ponto de partida), com `expected_sources` usando

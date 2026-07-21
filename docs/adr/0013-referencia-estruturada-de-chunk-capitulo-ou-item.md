@@ -3,6 +3,14 @@
 ## Status
 Aceito — 2026-07-21
 
+> **Nota (2026-07-21, T8):** a decisão original (seção 2) nomeia a coluna/campo de proveniência em
+> `book_version` como `reference_style`/`referenceStyle`. A implementação real (T2, migration
+> `V4__chunk_reference.sql` e `BookVersion.kt`) usa `reference_type`/`referenceType` — o mesmo par
+> nome/tipo já usado em `chunk`, reaproveitando o enum `ReferenceType` único descrito em
+> `plan.md` (um só tipo para as duas camadas, não um par de nomes por camada). Comportamento e
+> semântica idênticos ao decidido aqui — só o nome do campo muda; `plan.md` já refletia
+> `referenceType` desde a primeira versão.
+
 ## Contexto
 Um teste real ingerindo "O Livro dos Espíritos" (Allan Kardec) expôs duas limitações do modelo de
 citação atual, que hoje cita fonte só por número de página (`Chunk.page`, ADR-0002):
