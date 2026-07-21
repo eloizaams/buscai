@@ -84,7 +84,7 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   `referenceType`; casos existentes que hoje verificam a citação por página são atualizados para o
   novo formato.
 
-- [ ] **T5 — `ChatEvent.Sources` + `ChatController` emite `event: sources`**
+- [x] **T5 — `ChatEvent.Sources` + `ChatController` emite `event: sources`**
   `ChatEvent.kt`: `data class Sources(val sources: List<SourceItem>) : ChatEvent()`;
   `SourceItem(chunkId: UUID, bookId: String, bookTitle: String, reference: String?, referenceType:
   ReferenceType?, text: String)` (arquivo próprio ou nested, a critério da task).

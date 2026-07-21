@@ -2,6 +2,7 @@ package com.buscai.backend.generation.web
 
 import com.buscai.backend.generation.GenerationService
 import com.buscai.backend.retrieval.RetrievalScope
+import com.buscai.backend.retrieval.RetrievedChunk
 import jakarta.annotation.PreDestroy
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import tools.jackson.databind.ObjectMapper
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.RejectedExecutionHandler
@@ -83,16 +85,35 @@ private fun chatWorkerThreadFactory(): ThreadFactory {
     }
 }
 
-private fun SseEmitter.sendChatEvent(event: ChatEvent) {
+private fun SseEmitter.sendChatEvent(
+    event: ChatEvent,
+    objectMapper: ObjectMapper,
+) {
     val builder =
         when (event) {
             is ChatEvent.Conversation -> SseEmitter.event().name("conversation").data(event.id.toString())
+            is ChatEvent.Sources -> SseEmitter.event().name("sources").data(objectMapper.writeValueAsString(event))
             is ChatEvent.Token -> SseEmitter.event().name("token").data(event.text)
             ChatEvent.Done -> SseEmitter.event().name("done").data("done")
             is ChatEvent.Error -> SseEmitter.event().name("error").data(event.message)
         }
     send(builder)
 }
+
+/**
+ * Mapeamento local `RetrievedChunk` (tipo de domínio, `retrieval/`) → [SourceItem] (DTO da camada
+ * web) — [ChatController] nunca expõe `RetrievedChunk` diretamente como resposta HTTP
+ * (`specs/referencia-estruturada/plan.md`, "Contratos entre camadas").
+ */
+private fun RetrievedChunk.toSourceItem(): SourceItem =
+    SourceItem(
+        chunkId = chunkId,
+        bookId = bookId,
+        bookTitle = bookTitle,
+        reference = reference,
+        referenceType = referenceType,
+        text = text,
+    )
 
 /**
  * `POST /chat` (`specs/geracao/plan.md`, "Como roda"): único endpoint que expõe
@@ -111,6 +132,7 @@ private fun SseEmitter.sendChatEvent(event: ChatEvent) {
 @RestController
 class ChatController(
     private val generationService: GenerationService,
+    private val objectMapper: ObjectMapper,
 ) {
     private val logger = LoggerFactory.getLogger(ChatController::class.java)
 
@@ -182,17 +204,20 @@ class ChatController(
                 scope = scope,
                 onConversationResolved = { conversationId, isNew ->
                     if (isNew) {
-                        emitter.sendChatEvent(ChatEvent.Conversation(conversationId))
+                        emitter.sendChatEvent(ChatEvent.Conversation(conversationId), objectMapper)
                     }
                 },
-                onToken = { token -> emitter.sendChatEvent(ChatEvent.Token(token)) },
+                onSourcesResolved = { chunks ->
+                    emitter.sendChatEvent(ChatEvent.Sources(chunks.map { it.toSourceItem() }), objectMapper)
+                },
+                onToken = { token -> emitter.sendChatEvent(ChatEvent.Token(token), objectMapper) },
             )
 
-            emitter.sendChatEvent(ChatEvent.Done)
+            emitter.sendChatEvent(ChatEvent.Done, objectMapper)
             emitter.complete()
         } catch (ex: Exception) {
             logger.warn("Falha ao processar /chat para device {}", deviceId, ex)
-            runCatching { emitter.sendChatEvent(ChatEvent.Error(GENERIC_ERROR_MESSAGE)) }
+            runCatching { emitter.sendChatEvent(ChatEvent.Error(GENERIC_ERROR_MESSAGE), objectMapper) }
             emitter.complete()
         }
     }
