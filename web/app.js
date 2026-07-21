@@ -293,7 +293,9 @@
         return;
       }
       if (eventName === "error") {
-        assistantMessage.content = data;
+        // Mesmo padrao do catch em torno de consumeChatStream: anexa, nunca sobrescreve, para
+        // nao apagar tokens que ja chegaram antes do backend reportar a falha.
+        assistantMessage.content = assistantMessage.content ? assistantMessage.content + "\n\n" + data : data;
         if (!state.messages.includes(assistantMessage)) {
           state.messages.push(assistantMessage);
         }
