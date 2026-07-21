@@ -374,6 +374,52 @@ class IngestionServiceTest {
     }
 
     /**
+     * Achado Crítico da revisão final de ponta a ponta (ADR-0013): um chunk de preâmbulo — texto
+     * antes do primeiro item numerado (ou do primeiro capítulo), para o qual
+     * `ReferenceAnnotator`/`Chunker` corretamente deixam `reference = null` — não pode herdar o
+     * `referenceType` do livro inteiro (parâmetro uniforme de `ingest(...)`). Antes da correção,
+     * `embedAndPersistInBatches` gravava `referenceType = referenceType` incondicionalmente, então
+     * esse chunk persistia com o par quebrado `reference: null` + `referenceType: NUMBERED_ITEM`,
+     * o que faz `GenerationService.referenceLabel` (que decide o rótulo só por `referenceType`, sem
+     * checar `reference`) montar `", item: null"` no prompt — e o mesmo par quebrado vazaria para o
+     * cliente via `SourceItem`.
+     */
+    @Test
+    fun `chunk de preambulo antes do primeiro item nao herda o referenceType do livro`() {
+        // "Introducao" + 649 palavras = 650 tokens, sem abertura numerada -> reference nulo.
+        val preamble = "Introducao ${words(1..649)}"
+        // "1." + "alfa" + 99 palavras = 101 tokens. 650 + 101 = 751 > MAX_OWN_CONTENT_TOKENS (695):
+        // o preâmbulo fecha sozinho no primeiro chunk, o item 1 forma o chunk seguinte.
+        val item1 = "1. alfa ${words(650..748)}"
+        val file = PdfFixtures.textPdf(tempDir, listOf(preamble, item1))
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-preambulo-t2",
+                title = "Livro Preâmbulo T2",
+                file = file,
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+
+        val completed = outcome as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed, obteve: $outcome")
+        checkNotNull(completed)
+
+        val chunks = chunkRepository.findAll().filter { it.bookVersionId == completed.versionId }
+        assertEquals(2, chunks.size, "esperava o preâmbulo isolado do item 1, sem mistura")
+
+        val preambleChunk = chunks.single { it.reference == null }
+        assertEquals(
+            null,
+            preambleChunk.referenceType,
+            "chunk de preâmbulo (sem reference) não pode herdar o referenceType do livro inteiro",
+        )
+
+        val itemChunk = chunks.single { it.reference == "1" }
+        assertEquals(ReferenceType.NUMBERED_ITEM, itemChunk.referenceType)
+    }
+
+    /**
      * CA3 (`spec.md`): um PDF sem camada de texto extraível (aqui, todas as páginas em branco —
      * mesma simulação usada por `ScannedPdfDetectorTest`) não pode virar uma `BookVersion` `READY`
      * com zero chunks. Sem essa checagem, `ChunkValidator.validate(emptyList())` aprova vacuamente

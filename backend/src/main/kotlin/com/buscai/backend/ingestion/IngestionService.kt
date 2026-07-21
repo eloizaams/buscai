@@ -312,7 +312,13 @@ class IngestionService(
                             text = draft.text,
                             embedding = vectors[index],
                             reference = draft.reference,
-                            referenceType = referenceType,
+                            // Nunca deriva referenceType só do parâmetro do livro inteiro: um chunk
+                            // sem reference (preâmbulo antes do primeiro capítulo/item, ver
+                            // ReferenceAnnotator/Chunker) precisa persistir referenceType nulo junto
+                            // — senão GenerationService.referenceLabel (que decide o rótulo só por
+                            // referenceType, sem checar reference) monta "item: null"/"capítulo: null"
+                            // no prompt, e o mesmo par quebrado vaza para o cliente via SourceItem.
+                            referenceType = if (draft.reference != null) referenceType else null,
                         )
                     }
                 chunkRepository.saveAll(chunks)
