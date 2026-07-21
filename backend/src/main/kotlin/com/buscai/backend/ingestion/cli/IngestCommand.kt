@@ -2,6 +2,7 @@ package com.buscai.backend.ingestion.cli
 
 import com.buscai.backend.ingestion.IngestionOutcome
 import com.buscai.backend.ingestion.IngestionService
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.springframework.boot.CommandLineRunner
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
@@ -15,6 +16,7 @@ data class IngestArgs(
     val file: File,
     val title: String,
     val reindex: Boolean,
+    val referenceType: ReferenceType? = null,
 )
 
 /**
@@ -39,13 +41,19 @@ sealed class IngestArgsResult {
  * `--book-id=<slug>` e `--file=<caminho-do-pdf>` (obrigatórios), `--title=<titulo>` (opcional —
  * quando ausente, usa o próprio `book-id` como título; o operador pode corrigir depois direto no
  * banco, e um título ausente não impede a busca — não vale a pena obrigar um argumento extra só
- * para isso) e `--reindex` (flag booleana: presença = `true`, ADR-0008).
+ * para isso), `--reindex` (flag booleana: presença = `true`, ADR-0008) e
+ * `--reference-style=chapter|numbered-item` (opcional, ADR-0013; ausente = nenhuma detecção de
+ * referência, `IngestArgs.referenceType` nulo — comportamento atual). Um valor fora desse conjunto
+ * é erro de parsing, nunca chega a [IngestionService.ingest].
  */
 object IngestArgsParser {
     private const val BOOK_ID_KEY = "book-id"
     private const val FILE_KEY = "file"
     private const val TITLE_KEY = "title"
+    private const val REFERENCE_STYLE_KEY = "reference-style"
     private const val REINDEX_FLAG = "--reindex"
+    private const val REFERENCE_STYLE_CHAPTER = "chapter"
+    private const val REFERENCE_STYLE_NUMBERED_ITEM = "numbered-item"
 
     fun parse(args: Array<out String>): IngestArgsResult {
         val options = mutableMapOf<String, String>()
@@ -61,7 +69,7 @@ object IngestArgsParser {
                 else ->
                     return IngestArgsResult.Error(
                         "Argumento não reconhecido: '$arg'. Use --book-id=<slug> --file=<caminho-do-pdf> " +
-                            "[--title=<titulo>] [--reindex].",
+                            "[--title=<titulo>] [--reindex] [--reference-style=chapter|numbered-item].",
                     )
             }
         }
@@ -83,8 +91,21 @@ object IngestArgsParser {
 
         val title = options[TITLE_KEY]?.takeIf { it.isNotBlank() } ?: bookId
 
+        val referenceStyle = options[REFERENCE_STYLE_KEY]
+        val referenceType =
+            when (referenceStyle) {
+                null -> null
+                REFERENCE_STYLE_CHAPTER -> ReferenceType.CHAPTER
+                REFERENCE_STYLE_NUMBERED_ITEM -> ReferenceType.NUMBERED_ITEM
+                else ->
+                    return IngestArgsResult.Error(
+                        "Valor inválido para --reference-style: '$referenceStyle'. Use " +
+                            "'$REFERENCE_STYLE_CHAPTER' ou '$REFERENCE_STYLE_NUMBERED_ITEM'.",
+                    )
+            }
+
         return IngestArgsResult.Parsed(
-            IngestArgs(bookId = bookId, file = file, title = title, reindex = reindex),
+            IngestArgs(bookId = bookId, file = file, title = title, reindex = reindex, referenceType = referenceType),
         )
     }
 }
@@ -157,6 +178,7 @@ class IngestCommand(
                         title = parsed.title,
                         file = parsed.file,
                         reindex = parsed.reindex,
+                        referenceType = parsed.referenceType,
                     )
                 val elapsed = Duration.between(start, Instant.now())
                 println(IngestionOutcomeFormatter.format(outcome, elapsed))

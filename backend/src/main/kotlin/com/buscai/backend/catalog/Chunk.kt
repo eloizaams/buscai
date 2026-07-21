@@ -1,7 +1,10 @@
 package com.buscai.backend.catalog
 
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.annotations.Array
@@ -16,7 +19,9 @@ const val EMBEDDING_DIMENSIONS = 1024
 /**
  * Um trecho de texto de uma [BookVersion] com seu vetor de embedding. [embedding] usa o suporte
  * nativo a `vector` do pgvector via `hibernate-vector` (Hibernate 6.4+, aqui 7.4.1.Final — ver
- * comentário em `build.gradle.kts`), não a classe `com.pgvector.PGvector` diretamente.
+ * comentário em `build.gradle.kts`), não a classe `com.pgvector.PGvector` diretamente. [reference]/
+ * [referenceType] (ADR-0013) substituem o antigo `chapter` (migration V4) — preenchidos só quando a
+ * ingestão declara `--reference-style`; `null`/`null` para livros ingeridos sem a flag.
  */
 @Entity
 @Table(name = "chunk")
@@ -38,8 +43,11 @@ class Chunk(
     @Array(length = EMBEDDING_DIMENSIONS)
     @Column(name = "embedding", nullable = false)
     var embedding: FloatArray,
-    @Column(name = "chapter")
-    var chapter: String? = null,
+    @Column(name = "reference")
+    var reference: String? = null,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reference_type")
+    var referenceType: ReferenceType? = null,
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 )

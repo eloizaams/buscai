@@ -39,9 +39,11 @@ um ADR revisando a decisão — nunca violar em silêncio.
 - Toda função pública nova nasce com teste unitário na mesma task.
 - `ktlintFormat` roda antes de qualquer tarefa ser considerada concluída; CI (build + lint +
   testes) precisa estar verde para merge.
-- A resposta do chat **sempre** cita livro e página, e declara explicitamente quando o
-  conteúdo não está nos livros indexados — resposta sem fundamento no contexto recuperado é
-  bug, não detalhe.
+- A resposta do chat **sempre** cita o livro e, quando o chunk tiver essa informação, a referência
+  (capítulo ou número do item/pergunta — página é metadado interno, não citado ao usuário por não
+  ser estável entre edições, ADR-0013); sem referência capturada, cita só o livro — nunca a página.
+  Declara explicitamente quando o conteúdo não está nos livros indexados — resposta sem fundamento
+  no contexto recuperado é bug, não detalhe.
 - Mudança em chunking, embedding, retrieval ou prompt de geração só mergeia após o
   `rag-evaluator` rodar o golden set (`specs/eval/golden-set.json`) sem regressão.
 

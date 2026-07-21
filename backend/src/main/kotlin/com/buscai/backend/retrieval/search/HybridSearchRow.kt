@@ -1,5 +1,6 @@
 package com.buscai.backend.retrieval.search
 
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import java.util.UUID
 
 /**
@@ -38,7 +39,8 @@ data class HybridSearchRow(
     val bookVersionId: UUID,
     val page: Int,
     val charOffset: Int,
-    val chapter: String?,
+    val reference: String?,
+    val referenceType: ReferenceType?,
     val text: String,
     val tokenCount: Int,
     val cosineSimilarity: Double,

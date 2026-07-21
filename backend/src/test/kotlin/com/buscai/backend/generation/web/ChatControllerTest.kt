@@ -14,6 +14,7 @@ import com.buscai.backend.generation.GenerationService
 import com.buscai.backend.generation.claude.ClaudeClient
 import com.buscai.backend.generation.claude.ClaudeClientException
 import com.buscai.backend.generation.claude.HistoryTurn
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -34,6 +35,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -147,12 +149,19 @@ class ChatControllerTest {
     @Autowired
     lateinit var fakeClaudeClient: FakeClaudeClient
 
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
+
     @BeforeEach
     fun resetFakes() {
         fakeClaudeClient.reset()
     }
 
-    private fun persistBookWithChunk(text: String): Book {
+    private fun persistBookWithChunk(
+        text: String,
+        reference: String? = null,
+        referenceType: ReferenceType? = null,
+    ): Pair<Book, Chunk> {
         val suffix = UUID.randomUUID()
         val book = bookRepository.save(Book(id = "livro-$suffix", title = "Livro $suffix"))
         val version =
@@ -173,18 +182,21 @@ class ChatControllerTest {
             )
         book.activeVersionId = version.id
         val activatedBook = bookRepository.save(book)
-        chunkRepository.save(
-            Chunk(
-                id = UUID.randomUUID(),
-                bookVersionId = version.id,
-                page = 1,
-                charOffset = 0,
-                tokenCount = 10,
-                text = text,
-                embedding = oneHotEmbedding(0),
-            ),
-        )
-        return activatedBook
+        val chunk =
+            chunkRepository.save(
+                Chunk(
+                    id = UUID.randomUUID(),
+                    bookVersionId = version.id,
+                    page = 1,
+                    charOffset = 0,
+                    tokenCount = 10,
+                    text = text,
+                    embedding = oneHotEmbedding(0),
+                    reference = reference,
+                    referenceType = referenceType,
+                ),
+            )
+        return activatedBook to chunk
     }
 
     private fun chatRequestJson(
@@ -207,6 +219,24 @@ class ChatControllerTest {
         val idEnd = body.indexOf('\n', idStart)
         return UUID.fromString(body.substring(idStart, idEnd))
     }
+
+    /** Extrai o valor cru de `data:` do primeiro `event:$eventName` do corpo SSE. */
+    private fun extractEventData(
+        body: String,
+        eventName: String,
+    ): String {
+        val marker = "event:$eventName\ndata:"
+        val start = body.indexOf(marker)
+        require(start >= 0) { "esperava event:$eventName no corpo:\n$body" }
+        val dataStart = start + marker.length
+        val dataEnd = body.indexOf('\n', dataStart)
+        return body.substring(dataStart, dataEnd)
+    }
+
+    private fun countOccurrences(
+        body: String,
+        substring: String,
+    ): Int = body.split(substring).size - 1
 
     private fun awaitSseCompletion(
         result: MvcResult,
@@ -258,7 +288,7 @@ class ChatControllerTest {
 
     @Test
     fun `conversa nova recebe event conversation antes de qualquer event token, seguido de event done`() {
-        val book = persistBookWithChunk("Bentinho e Capitu se conhecem quando crianças.")
+        val (book, _) = persistBookWithChunk("Bentinho e Capitu se conhecem quando crianças.")
 
         val result =
             mockMvc
@@ -287,7 +317,7 @@ class ChatControllerTest {
 
     @Test
     fun `conversa existente nao recebe event conversation, so tokens seguidos de done`() {
-        val book = persistBookWithChunk("Bentinho e Capitu se conhecem quando crianças.")
+        val (book, _) = persistBookWithChunk("Bentinho e Capitu se conhecem quando crianças.")
         val deviceId = "device-${UUID.randomUUID()}"
 
         val firstResult =
@@ -319,7 +349,7 @@ class ChatControllerTest {
 
     @Test
     fun `falha no ClaudeClient produz event error sem event done`() {
-        val book = persistBookWithChunk("Trecho qualquer sobre um personagem.")
+        val (book, _) = persistBookWithChunk("Trecho qualquer sobre um personagem.")
         fakeClaudeClient.generateShouldFail = true
 
         val result =
@@ -378,5 +408,99 @@ class ChatControllerTest {
             bodyUtf8.contains(GenerationService.NO_RELEVANT_CONTEXT_MESSAGE),
             "corpo decodificado como UTF-8 deveria conter a mensagem fixa intacta, sem acentos corrompidos:\n$bodyUtf8",
         )
+    }
+
+    /**
+     * T5 (`specs/referencia-estruturada/tasks.md`): `event: sources` único, antes do primeiro
+     * `event: token`, com o JSON esperado (ADR-0013, seção 3) — `referenceType` serializado como o
+     * nome do enum.
+     */
+    @Test
+    fun `pergunta com contexto relevante produz event sources unico antes do primeiro event token`() {
+        val (book, chunk) =
+            persistBookWithChunk(
+                text = "157. Que é a morte? — É a destruição do corpo mais grosseiro.",
+                reference = "157",
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+
+        val result =
+            mockMvc
+                .perform(
+                    post("/chat")
+                        .header("X-Api-Key", VALID_API_KEY)
+                        .header("X-Device-Id", "device-${UUID.randomUUID()}")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(chatRequestJson("o que é a morte?", setOf(book.id))),
+                ).andReturn()
+
+        val body = awaitSseCompletion(result)
+
+        assertEquals(1, countOccurrences(body, "event:sources"), body)
+        val sourcesIndex = body.indexOf("event:sources")
+        val firstTokenIndex = body.indexOf("event:token")
+        assertTrue(sourcesIndex >= 0 && sourcesIndex < firstTokenIndex, "sources deveria vir antes do primeiro token:\n$body")
+
+        val sourcesJson = objectMapper.readTree(extractEventData(body, "sources"))
+        val sources = sourcesJson.get("sources")
+        assertEquals(1, sources.size(), sourcesJson.toString())
+        val sourceItem = sources[0]
+        assertEquals(chunk.id.toString(), sourceItem.get("chunkId").asString())
+        assertEquals(book.id, sourceItem.get("bookId").asString())
+        assertEquals(book.title, sourceItem.get("bookTitle").asString())
+        assertEquals("157", sourceItem.get("reference").asString())
+        assertEquals("NUMBERED_ITEM", sourceItem.get("referenceType").asString())
+        assertEquals(chunk.text, sourceItem.get("text").asString())
+    }
+
+    /** CA6 (`specs/referencia-estruturada/spec.md`): chunk sem referência aparece com campos `null`, nunca omitido. */
+    @Test
+    fun `chunk sem referencia aparece em sources com reference e referenceType null`() {
+        val (book, chunk) = persistBookWithChunk(text = "Trecho de um livro ingerido sem --reference-style.")
+
+        val result =
+            mockMvc
+                .perform(
+                    post("/chat")
+                        .header("X-Api-Key", VALID_API_KEY)
+                        .header("X-Device-Id", "device-${UUID.randomUUID()}")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(chatRequestJson("do que trata este livro?", setOf(book.id))),
+                ).andReturn()
+
+        val body = awaitSseCompletion(result)
+
+        val sourcesJson = objectMapper.readTree(extractEventData(body, "sources"))
+        val sources = sourcesJson.get("sources")
+        assertEquals(1, sources.size(), sourcesJson.toString())
+        val sourceItem = sources[0]
+        assertEquals(chunk.id.toString(), sourceItem.get("chunkId").asString())
+        assertTrue(sourceItem.has("reference"), sourceItem.toString())
+        assertTrue(sourceItem.get("reference").isNull, sourceItem.toString())
+        assertTrue(sourceItem.has("referenceType"), sourceItem.toString())
+        assertTrue(sourceItem.get("referenceType").isNull, sourceItem.toString())
+    }
+
+    /** CA2 (`specs/referencia-estruturada/spec.md`): `NoRelevantContext` nunca produz `event: sources`. */
+    @Test
+    fun `pergunta sem contexto relevante nao produz event sources`() {
+        val result =
+            mockMvc
+                .perform(
+                    post("/chat")
+                        .header("X-Api-Key", VALID_API_KEY)
+                        .header("X-Device-Id", "device-${UUID.randomUUID()}")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            chatRequestJson(
+                                "pergunta sem contexto",
+                                setOf("livro-inexistente-${UUID.randomUUID()}"),
+                            ),
+                        ),
+                ).andReturn()
+
+        val body = awaitSseCompletion(result)
+
+        assertFalse(body.contains("event:sources"), body)
     }
 }

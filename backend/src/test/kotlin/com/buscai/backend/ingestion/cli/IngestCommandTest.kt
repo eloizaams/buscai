@@ -1,7 +1,9 @@
 package com.buscai.backend.ingestion.cli
 
 import com.buscai.backend.ingestion.IngestionOutcome
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -54,6 +56,55 @@ class IngestCommandTest {
         val args = (result as IngestArgsResult.Parsed).args
         assertEquals("Dom Casmurro", args.title)
         assertEquals(true, args.reindex)
+    }
+
+    // --- IngestArgsParser: --reference-style (ADR-0013) ---
+
+    @Test
+    fun `parse sem --reference-style deixa referenceType nulo (comportamento atual)`() {
+        val file = existingPdf()
+
+        val result = IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file"))
+
+        assertTrue(result is IngestArgsResult.Parsed)
+        assertNull((result as IngestArgsResult.Parsed).args.referenceType)
+    }
+
+    @Test
+    fun `parse aceita --reference-style=chapter`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file", "--reference-style=chapter"))
+
+        assertTrue(result is IngestArgsResult.Parsed)
+        assertEquals(ReferenceType.CHAPTER, (result as IngestArgsResult.Parsed).args.referenceType)
+    }
+
+    @Test
+    fun `parse aceita --reference-style=numbered-item`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--reference-style=numbered-item"),
+            )
+
+        assertTrue(result is IngestArgsResult.Parsed)
+        assertEquals(ReferenceType.NUMBERED_ITEM, (result as IngestArgsResult.Parsed).args.referenceType)
+    }
+
+    @Test
+    fun `parse rejeita valor invalido de --reference-style, sem chegar a IngestionService`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--reference-style=capitulo"),
+            )
+
+        assertTrue(result is IngestArgsResult.Error)
+        assertTrue((result as IngestArgsResult.Error).message.contains("reference-style"))
     }
 
     // --- IngestArgsParser: erros de parsing (CA7) ---

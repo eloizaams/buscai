@@ -1,5 +1,6 @@
 package com.buscai.backend.retrieval.cli
 
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import com.buscai.backend.retrieval.RetrievalResult
 import com.buscai.backend.retrieval.RetrievalScope
 import com.buscai.backend.retrieval.RetrievedChunk
@@ -97,14 +98,15 @@ class RetrievalDebugCommandTest {
     }
 
     @Test
-    fun `format traduz Found imprimindo bookId, pagina, capitulo, score e trecho de cada chunk`() {
+    fun `format traduz Found imprimindo bookId, pagina, referencia, score e trecho de cada chunk`() {
         val chunk =
             RetrievedChunk(
                 chunkId = UUID.randomUUID(),
                 bookId = "dom-casmurro",
                 bookTitle = "Dom Casmurro",
                 page = 42,
-                chapter = "Capítulo IX",
+                reference = "Capítulo IX",
+                referenceType = ReferenceType.CHAPTER,
                 text = "Bentinho e Capitu se conhecem quando crianças.",
                 score = 0.8765,
             )
@@ -127,7 +129,8 @@ class RetrievalDebugCommandTest {
                 bookId = "livro-longo",
                 bookTitle = "Livro Longo",
                 page = 1,
-                chapter = null,
+                reference = null,
+                referenceType = null,
                 text = textoLongo,
                 score = 0.5,
             )
@@ -146,7 +149,8 @@ class RetrievalDebugCommandTest {
                 bookId = "livro-1",
                 bookTitle = "Livro 1",
                 page = 1,
-                chapter = null,
+                reference = null,
+                referenceType = null,
                 text = "trecho 1",
                 score = 0.9,
             )
@@ -156,7 +160,8 @@ class RetrievalDebugCommandTest {
                 bookId = "livro-2",
                 bookTitle = "Livro 2",
                 page = 2,
-                chapter = null,
+                reference = null,
+                referenceType = null,
                 text = "trecho 2",
                 score = 0.1,
             )

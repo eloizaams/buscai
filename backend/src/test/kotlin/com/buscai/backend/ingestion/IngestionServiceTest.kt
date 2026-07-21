@@ -11,6 +11,7 @@ import com.buscai.backend.embedding.EmbeddingClientException
 import com.buscai.backend.embedding.EmbeddingInputType
 import com.buscai.backend.ingestion.chunking.MAX_CHUNK_TOKENS
 import com.buscai.backend.ingestion.chunking.MIN_CHUNK_TOKENS
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import com.buscai.backend.ingestion.pdf.PdfFixtures
 import com.buscai.backend.ingestion.pdf.PdfTextExtractor
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -302,6 +303,11 @@ class IngestionServiceTest {
             assertTrue(chunk.tokenCount in MIN_CHUNK_TOKENS..MAX_CHUNK_TOKENS, "chunk fora da faixa: ${chunk.tokenCount}")
             assertEquals(EMBEDDING_DIMENSIONS, chunk.embedding.size)
             assertTrue(chunk.text.isNotBlank())
+            // CA7 (specs/referencia-estruturada/spec.md): sem --reference-style (referenceType nulo
+            // nesta chamada), nenhum chunk deveria ganhar reference/referenceType — comportamento
+            // idêntico ao anterior à feature ADR-0013.
+            assertEquals(null, chunk.reference)
+            assertEquals(null, chunk.referenceType)
         }
 
         // Lote pequeno (2) força múltiplos lotes de embedding mesmo com poucos chunks.
@@ -323,6 +329,94 @@ class IngestionServiceTest {
             fakeEmbeddingClient.transactionActiveDuringCall.any { it },
             "nenhuma chamada ao EmbeddingClient deveria acontecer com uma transação de banco ativa",
         )
+    }
+
+    /**
+     * ADR-0013 (`specs/referencia-estruturada/tasks.md`, T2): ingerir com `referenceType =
+     * NUMBERED_ITEM` persiste `Chunk.reference`/`referenceType` corretos e confirma que o
+     * `ChunkValidator` não rejeita um chunk abaixo de `MIN_CHUNK_TOKENS` quando um item numerado
+     * isolado fica sozinho no grupo (mesma mecânica de `ChunkerTest` para este estilo, aqui de
+     * ponta a ponta via `IngestionService`, incluindo a persistência em `BookVersion`/`Chunk`).
+     */
+    @Test
+    fun `ingerir com referenceType NUMBERED_ITEM persiste reference e referenceType corretos, incluindo chunk abaixo do minimo`() {
+        val item1 = "1. alfa ${words(1..99)}" // "1." + "alfa" + 99 palavras = 101 tokens, bem abaixo do piso
+        val item2 = "2. beta ${words(101..749)}" // "2." + "beta" + 649 palavras = 651 tokens
+        val file = PdfFixtures.textPdf(tempDir, listOf(item1, item2))
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-numbered-item-t2",
+                title = "Livro Item Numerado T2",
+                file = file,
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+
+        val completed = outcome as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed, obteve: $outcome")
+        checkNotNull(completed)
+
+        val version = bookVersionRepository.findById(completed.versionId).orElseThrow()
+        assertEquals(ReferenceType.NUMBERED_ITEM, version.referenceType)
+
+        val chunks = chunkRepository.findAll().filter { it.bookVersionId == completed.versionId }
+        assertEquals(2, chunks.size, "esperava um chunk por item, sem mistura entre os dois")
+
+        val chunkItem1 = chunks.single { it.reference == "1" }
+        assertEquals(ReferenceType.NUMBERED_ITEM, chunkItem1.referenceType)
+        assertTrue(
+            chunkItem1.tokenCount < MIN_CHUNK_TOKENS,
+            "item isolado precisa ficar abaixo do piso — ChunkValidator não deveria rejeitar isso para NUMBERED_ITEM",
+        )
+
+        val chunkItem2 = chunks.single { it.reference == "2" }
+        assertEquals(ReferenceType.NUMBERED_ITEM, chunkItem2.referenceType)
+    }
+
+    /**
+     * Achado Crítico da revisão final de ponta a ponta (ADR-0013): um chunk de preâmbulo — texto
+     * antes do primeiro item numerado (ou do primeiro capítulo), para o qual
+     * `ReferenceAnnotator`/`Chunker` corretamente deixam `reference = null` — não pode herdar o
+     * `referenceType` do livro inteiro (parâmetro uniforme de `ingest(...)`). Antes da correção,
+     * `embedAndPersistInBatches` gravava `referenceType = referenceType` incondicionalmente, então
+     * esse chunk persistia com o par quebrado `reference: null` + `referenceType: NUMBERED_ITEM`,
+     * o que faz `GenerationService.referenceLabel` (que decide o rótulo só por `referenceType`, sem
+     * checar `reference`) montar `", item: null"` no prompt — e o mesmo par quebrado vazaria para o
+     * cliente via `SourceItem`.
+     */
+    @Test
+    fun `chunk de preambulo antes do primeiro item nao herda o referenceType do livro`() {
+        // "Introducao" + 649 palavras = 650 tokens, sem abertura numerada -> reference nulo.
+        val preamble = "Introducao ${words(1..649)}"
+        // "1." + "alfa" + 99 palavras = 101 tokens. 650 + 101 = 751 > MAX_OWN_CONTENT_TOKENS (695):
+        // o preâmbulo fecha sozinho no primeiro chunk, o item 1 forma o chunk seguinte.
+        val item1 = "1. alfa ${words(650..748)}"
+        val file = PdfFixtures.textPdf(tempDir, listOf(preamble, item1))
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-preambulo-t2",
+                title = "Livro Preâmbulo T2",
+                file = file,
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+
+        val completed = outcome as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed, obteve: $outcome")
+        checkNotNull(completed)
+
+        val chunks = chunkRepository.findAll().filter { it.bookVersionId == completed.versionId }
+        assertEquals(2, chunks.size, "esperava o preâmbulo isolado do item 1, sem mistura")
+
+        val preambleChunk = chunks.single { it.reference == null }
+        assertEquals(
+            null,
+            preambleChunk.referenceType,
+            "chunk de preâmbulo (sem reference) não pode herdar o referenceType do livro inteiro",
+        )
+
+        val itemChunk = chunks.single { it.reference == "1" }
+        assertEquals(ReferenceType.NUMBERED_ITEM, itemChunk.referenceType)
     }
 
     /**

@@ -15,6 +15,7 @@ import com.buscai.backend.ingestion.chunking.ChunkDraft
 import com.buscai.backend.ingestion.chunking.ChunkValidationResult
 import com.buscai.backend.ingestion.chunking.ChunkValidator
 import com.buscai.backend.ingestion.chunking.Chunker
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import com.buscai.backend.ingestion.chunking.TextCleaner
 import com.buscai.backend.ingestion.pdf.PdfTextExtractor
 import com.buscai.backend.ingestion.pdf.ScannedPdfDetector
@@ -121,6 +122,7 @@ class IngestionService(
         title: String,
         file: File,
         reindex: Boolean = false,
+        referenceType: ReferenceType? = null,
     ): IngestionOutcome {
         var versionId: UUID? = null
         return try {
@@ -145,17 +147,17 @@ class IngestionService(
             // genérico abaixo, que devolve IngestionOutcome.Failed com versionId nulo (CA7).
             val pageCount = pdfTextExtractor.pageCount(file)
 
-            versionId = startVersion(bookId, title, fileHash, pageCount)
+            versionId = startVersion(bookId, title, fileHash, pageCount, referenceType)
 
-            val drafts = extractCleanAndChunk(file, pageCount)
+            val drafts = extractCleanAndChunk(file, pageCount, referenceType)
 
-            when (val validation = chunkValidator.validate(drafts)) {
+            when (val validation = chunkValidator.validate(drafts, referenceType)) {
                 is ChunkValidationResult.Invalid ->
                     return fail(bookId, versionId, validation.violations.joinToString("; "))
                 ChunkValidationResult.Valid -> Unit
             }
 
-            val chunkCount = embedAndPersistInBatches(versionId, drafts)
+            val chunkCount = embedAndPersistInBatches(versionId, drafts, referenceType)
 
             completeVersion(bookId, versionId, pageCount, chunkCount)
 
@@ -221,6 +223,7 @@ class IngestionService(
         title: String,
         fileHash: String,
         pageCount: Int,
+        referenceType: ReferenceType?,
     ): UUID {
         val version =
             transactionTemplate.execute {
@@ -236,6 +239,7 @@ class IngestionService(
                         embeddingModelVersion = voyageProperties.modelVersion,
                         status = BookVersionStatus.INGESTING,
                         pageCount = pageCount,
+                        referenceType = referenceType,
                     ),
                 )
             }
@@ -256,6 +260,7 @@ class IngestionService(
     private fun extractCleanAndChunk(
         file: File,
         pageCount: Int,
+        referenceType: ReferenceType?,
     ): List<ChunkDraft> {
         if (pageCount == 0) return emptyList()
 
@@ -279,7 +284,7 @@ class IngestionService(
             )
         }
 
-        return chunker.chunk(cleanedPages)
+        return chunker.chunk(cleanedPages, referenceType)
     }
 
     /**
@@ -290,6 +295,7 @@ class IngestionService(
     private fun embedAndPersistInBatches(
         versionId: UUID,
         drafts: List<ChunkDraft>,
+        referenceType: ReferenceType?,
     ): Int {
         var persisted = 0
         drafts.chunked(ingestionProperties.chunkEmbeddingBatchSize).forEach { batch ->
@@ -305,7 +311,14 @@ class IngestionService(
                             tokenCount = draft.tokenCount,
                             text = draft.text,
                             embedding = vectors[index],
-                            chapter = draft.chapter,
+                            reference = draft.reference,
+                            // Nunca deriva referenceType só do parâmetro do livro inteiro: um chunk
+                            // sem reference (preâmbulo antes do primeiro capítulo/item, ver
+                            // ReferenceAnnotator/Chunker) precisa persistir referenceType nulo junto
+                            // — senão GenerationService.referenceLabel (que decide o rótulo só por
+                            // referenceType, sem checar reference) monta "item: null"/"capítulo: null"
+                            // no prompt, e o mesmo par quebrado vaza para o cliente via SourceItem.
+                            referenceType = if (draft.reference != null) referenceType else null,
                         )
                     }
                 chunkRepository.saveAll(chunks)

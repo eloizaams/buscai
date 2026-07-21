@@ -108,7 +108,7 @@ object RetrievalResultFormatter {
         }
 
     private fun formatChunk(chunk: RetrievedChunk): String {
-        val chapterInfo = chunk.chapter?.let { " · capítulo: $it" } ?: ""
+        val referenceInfo = chunk.reference?.let { " · referência: $it" } ?: ""
         val excerpt =
             if (chunk.text.length > TEXT_EXCERPT_MAX_CHARS) {
                 "${chunk.text.take(TEXT_EXCERPT_MAX_CHARS)}..."
@@ -116,7 +116,7 @@ object RetrievalResultFormatter {
                 chunk.text
             }
         val score = "%.4f".format(Locale.ROOT, chunk.score)
-        return "[${chunk.bookId}] p.${chunk.page}$chapterInfo · score=$score — $excerpt"
+        return "[${chunk.bookId}] p.${chunk.page}$referenceInfo · score=$score — $excerpt"
     }
 }
 
@@ -132,8 +132,8 @@ object RetrievalResultFormatter {
  *
  * Parseia os argumentos ([RetrievalDebugArgsParser]) antes de chamar [RetrievalService.search] —
  * erro de parsing vira uma mensagem no console, sem tocar o pipeline. Imprime cada
- * [RetrievedChunk] (bookId, página, capítulo, score, trecho do texto) ou a mensagem de "sem
- * contexto relevante" ([RetrievalResultFormatter]).
+ * [RetrievedChunk] (bookId, página, referência estruturada, score, trecho do texto) ou a mensagem
+ * de "sem contexto relevante" ([RetrievalResultFormatter]).
  *
  * Falha ao chamar [RetrievalService.search] (`EmbeddingClientException` — Voyage indisponível/erro
  * de rede — ou `DataAccessException` — Postgres indisponível/erro de query) nunca chega crua ao

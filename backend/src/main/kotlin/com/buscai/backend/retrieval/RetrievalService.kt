@@ -88,7 +88,8 @@ class RetrievalService(
                     bookId = book.id,
                     bookTitle = book.title,
                     page = row.page,
-                    chapter = row.chapter,
+                    reference = row.reference,
+                    referenceType = row.referenceType,
                     text = row.text,
                     score = row.rrfScore,
                 )
