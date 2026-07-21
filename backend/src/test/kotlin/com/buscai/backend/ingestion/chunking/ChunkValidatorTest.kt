@@ -99,4 +99,37 @@ class ChunkValidatorTest {
     fun `validate accepts an empty list of chunks`() {
         assertEquals(ChunkValidationResult.Valid, validator.validate(emptyList()))
     }
+
+    // --- piso condicional ao referenceType (ADR-0013) ---
+
+    @Test
+    fun `validate skips the minimum token check only when referenceType is NUMBERED_ITEM`() {
+        val tooShort = draft(words(1..100)) // 100 tokens, abaixo de MIN_CHUNK_TOKENS (300)
+
+        val result = validator.validate(listOf(tooShort), ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(ChunkValidationResult.Valid, result)
+    }
+
+    @Test
+    fun `validate still rejects a chunk below the minimum for CHAPTER and no referenceType`() {
+        val tooShort = draft(words(1..100))
+
+        val chapterResult = validator.validate(listOf(tooShort), ReferenceType.CHAPTER)
+        val nullResult = validator.validate(listOf(tooShort), null)
+
+        assertTrue(chapterResult is ChunkValidationResult.Invalid)
+        assertTrue(nullResult is ChunkValidationResult.Invalid)
+    }
+
+    @Test
+    fun `validate still rejects a chunk above the maximum token count when referenceType is NUMBERED_ITEM`() {
+        val tooLong = draft(words(1..900)) // 900 tokens, acima de MAX_CHUNK_TOKENS (800)
+
+        val result = validator.validate(listOf(tooLong), ReferenceType.NUMBERED_ITEM)
+
+        assertTrue(result is ChunkValidationResult.Invalid)
+        val violations = (result as ChunkValidationResult.Invalid).violations
+        assertTrue(violations.any { it.contains("900") && it.contains("800") }) { "violações eram: $violations" }
+    }
 }

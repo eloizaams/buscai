@@ -4,7 +4,7 @@ Ordem sequencial — cada item depende do(s) anterior(es) e cabe numa sessão do
 `kotlin-implementer`. Todos em `backend/` (T6 toca `web/`, JS puro). Rodar `./gradlew ktlintFormat`
 e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
 
-- [ ] **T1 — `ReferenceType` + `ReferenceAnnotator` + `Chunker`/`ChunkValidator` (chunking atômico
+- [x] **T1 — `ReferenceType` + `ReferenceAnnotator` + `Chunker`/`ChunkValidator` (chunking atômico
   por item)**
   Pacote `com.buscai.backend.ingestion.chunking`. `ReferenceType.kt`: enum `CHAPTER` /
   `NUMBERED_ITEM` — tipo único reaproveitado por `ChunkDraft`, `Chunk` (T2), `IngestArgs` (T2) e

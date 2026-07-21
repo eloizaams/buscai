@@ -305,7 +305,7 @@ class IngestionService(
                             tokenCount = draft.tokenCount,
                             text = draft.text,
                             embedding = vectors[index],
-                            chapter = draft.chapter,
+                            chapter = draft.reference,
                         )
                     }
                 chunkRepository.saveAll(chunks)

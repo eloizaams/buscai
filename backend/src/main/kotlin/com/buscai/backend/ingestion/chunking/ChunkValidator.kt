@@ -25,6 +25,12 @@ sealed class ChunkValidationResult {
  * a ingestão (T7) decidir falhar com uma mensagem clara (CA7) em vez de indexar silenciosamente um
  * chunk fora do padrão.
  *
+ * [ChunkValidator.validate] recebe o `referenceType` declarado na ingestão (ADR-0013, amenda ao
+ * ADR-0008): quando é [ReferenceType.NUMBERED_ITEM], a checagem de [MIN_CHUNK_TOKENS] é pulada —
+ * item numerado é a unidade atômica de chunk ([Chunker.groupUnits]), então um chunk pode
+ * legitimamente ficar abaixo do piso. O teto [MAX_CHUNK_TOKENS] e o overlap continuam validados
+ * sempre, para todo `referenceType` (inclusive `null`).
+ *
  * O overlap **não** é lido de nenhum campo interno do [Chunker] — é medido diretamente comparando
  * o texto de dois chunks vizinhos (o maior sufixo de tokens do chunk anterior que também é um
  * prefixo de tokens do chunk seguinte), para que a validação sirva como uma checagem independente
@@ -32,11 +38,14 @@ sealed class ChunkValidationResult {
  */
 @Component
 class ChunkValidator {
-    fun validate(chunks: List<ChunkDraft>): ChunkValidationResult {
+    fun validate(
+        chunks: List<ChunkDraft>,
+        referenceType: ReferenceType? = null,
+    ): ChunkValidationResult {
         val violations = mutableListOf<String>()
 
         chunks.forEachIndexed { index, chunk ->
-            violations += validateChunk(index, chunk)
+            violations += validateChunk(index, chunk, referenceType)
         }
 
         for (index in 0 until chunks.size - 1) {
@@ -51,9 +60,17 @@ class ChunkValidator {
     private fun validateChunk(
         index: Int,
         chunk: ChunkDraft,
+        referenceType: ReferenceType?,
     ): List<String> {
         if (chunk.text.isBlank()) return listOf("chunk $index está vazio")
-        if (chunk.tokenCount !in MIN_CHUNK_TOKENS..MAX_CHUNK_TOKENS) {
+        if (chunk.tokenCount > MAX_CHUNK_TOKENS) {
+            return listOf(
+                "chunk $index tem ${chunk.tokenCount} tokens, fora da faixa " +
+                    "$MIN_CHUNK_TOKENS-$MAX_CHUNK_TOKENS",
+            )
+        }
+        val skipMinCheck = referenceType == ReferenceType.NUMBERED_ITEM
+        if (!skipMinCheck && chunk.tokenCount < MIN_CHUNK_TOKENS) {
             return listOf(
                 "chunk $index tem ${chunk.tokenCount} tokens, fora da faixa " +
                     "$MIN_CHUNK_TOKENS-$MAX_CHUNK_TOKENS",

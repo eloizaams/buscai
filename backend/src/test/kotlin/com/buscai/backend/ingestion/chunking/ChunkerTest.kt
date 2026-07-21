@@ -183,4 +183,116 @@ class ChunkerTest {
             }
         }
     }
+
+    // --- referenceType (ADR-0013) ---
+
+    @Test
+    fun `chunk fills reference with the chapter label current at the first paragraph of each group when referenceType is CHAPTER`() {
+        // Parágrafos grandes o bastante para forçar dois grupos (mesma mecânica do teste de
+        // fronteira de parágrafo acima) — o segundo capítulo começa dentro do primeiro grupo, então
+        // sua referência só aparece no primeiro parágrafo do PRÓXIMO grupo (imprecisão documentada
+        // em plan.md: "chunk cruza fronteira de capítulo" já existe hoje de forma equivalente com página).
+        val pageTexts =
+            mapOf(
+                1 to "Capítulo I\n\n${words(1..400)}",
+                2 to "Capítulo II\n\n${words(401..800)}",
+            )
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.CHAPTER)
+
+        assertEquals(2, chunks.size)
+        assertEquals("Capítulo I", chunks[0].reference)
+        assertEquals("Capítulo II", chunks[1].reference)
+    }
+
+    @Test
+    fun `chunk leaves reference null for every chunk when referenceType is null`() {
+        val pageTexts = mapOf(1 to words(1..20))
+
+        val chunks = chunker.chunk(pageTexts)
+
+        assertEquals(1, chunks.size)
+        assertEquals(null, chunks[0].reference)
+    }
+
+    /** "1. w1 w2 ... wN" — abertura de item numerado (ADR-0013) seguida de conteúdo previsível. */
+    private fun item(
+        number: Int,
+        range: IntRange,
+    ): String = "$number. ${words(range)}"
+
+    @Test
+    fun `chunk with NUMBERED_ITEM never cuts a paragraph to mix two different items, even leaving a chunk below the minimum`() {
+        // item 1 (100 tokens) + item 2 (650 tokens) somam 750, que excede MAX_OWN_CONTENT_TOKENS
+        // (695) — no estilo CHAPTER/null, o MIN-first cortaria o item 2 para completar o grupo do
+        // item 1 até o teto (ver teste equivalente sem referenceType). Para NUMBERED_ITEM isso é
+        // proibido: o item 1 fecha sozinho, mesmo abaixo de MIN_CHUNK_TOKENS (300).
+        val item1 = item(1, 1..99) // 1 ("1.") + 99 = 100 tokens
+        val item2 = item(2, 101..749) // 1 ("2.") + 649 = 650 tokens
+        val pageTexts = mapOf(1 to "$item1\n\n$item2")
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(2, chunks.size)
+
+        // Item 1 isolado, abaixo do piso — nunca cortado para "completar" o grupo com o item 2.
+        assertEquals(item1, chunks[0].text)
+        assertEquals(100, chunks[0].tokenCount)
+        assertTrue(
+            chunks[0].tokenCount < MIN_CHUNK_TOKENS,
+        ) { "item isolado precisa ficar abaixo do piso, não completado às custas do item 2" }
+        assertEquals("1", chunks[0].reference)
+
+        // Item 2 íntegro no chunk seguinte, nunca partido para caber no grupo anterior.
+        assertTrue(chunks[1].text.endsWith(item2)) { "item 2 precisa estar íntegro, nunca cortado para caber no grupo do item 1" }
+        assertEquals("2", chunks[1].reference)
+    }
+
+    @Test
+    fun `chunk with NUMBERED_ITEM groups short consecutive items into one chunk with an interval reference`() {
+        val item1 = item(1, 1..50)
+        val item2 = item(2, 51..100)
+        val item3 = item(3, 101..150)
+        val pageTexts = mapOf(1 to "$item1\n\n$item2\n\n$item3")
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(1, chunks.size)
+        assertEquals("$item1\n\n$item2\n\n$item3", chunks[0].text)
+        assertEquals("1–3", chunks[0].reference)
+    }
+
+    @Test
+    fun `chunk with NUMBERED_ITEM never splits an item across chunks when its continuation alone would overflow the accumulated group`() {
+        // Reprodução do achado Crítico do code-reviewer na primeira passada de T1: o laço guloso de
+        // groupUnits processava cada parágrafo isoladamente, então a abertura do item 157 (curta)
+        // cabia no grupo já ocupado pelo item 156, mas a continuação de 157 (sem abertura numerada
+        // própria, apenas herdando a reference) sozinha estourava o orçamento acumulado e migrava
+        // para o próximo grupo — junto com o item 158, partindo o item 157 ao meio. A correção
+        // (coalesceItemContinuations) funde abertura + continuação numa única unidade ANTES do
+        // agrupamento, então o laço guloso nunca mais vê "meio item".
+        val item156 = item(156, 1..599) // "156. w1..w599" = 1 + 599 = 600 tokens
+        val item157Main = item(157, 600..609) // "157. w600..w609" = 1 + 10 = 11 tokens
+        val item157Continuation = words(610..1249) // continuação sem abertura numerada = 640 tokens
+        val item158 = item(158, 1250..1269) // "158. w1250..w1269" = 1 + 20 = 21 tokens
+        val pageTexts =
+            mapOf(
+                1 to listOf(item156, item157Main, item157Continuation, item158).joinToString("\n\n"),
+            )
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        val chunkWithItem157Opening = chunks.single { item157Main in it.text }
+        assertTrue(item157Continuation in chunkWithItem157Opening.text) {
+            "a continuação do item 157 precisa estar no mesmo chunk da sua abertura — " +
+                "nunca partido entre dois chunks"
+        }
+        // item 156 (600) + abertura de 157 (11) + continuação de 157 (640) somam 1251, acima de
+        // MAX_OWN_CONTENT_TOKENS (695) — item 156 precisa ficar isolado no chunk anterior, nunca
+        // cortado nem compartilhando grupo com o 157.
+        val chunkWithItem156 = chunks.single { item156 in it.text }
+        assertTrue(item157Main !in chunkWithItem156.text) {
+            "item 156 e a abertura do item 157 não podem compartilhar o mesmo chunk aqui (estouraria o teto)"
+        }
+    }
 }

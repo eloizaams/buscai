@@ -62,27 +62,32 @@ internal fun tokenize(text: String): List<String> = TOKEN_REGEX.findAll(text).ma
 
 /**
  * Resultado do [Chunker]: um trecho de texto pronto para ser validado ([ChunkValidator]) e depois
- * persistido como `com.buscai.backend.catalog.Chunk` (T7, depois de gerar o embedding). Carrega só os
- * campos que o próprio chunking sabe preencher — [chapter] fica sempre nulo aqui: detecção de
- * capítulo está fora do escopo desta task, reservada para uma feature futura.
+ * persistido como `com.buscai.backend.catalog.Chunk` (depois de gerar o embedding). [reference] só
+ * é preenchido quando `chunk(...)` recebe um `referenceType` não nulo (ADR-0013) — anotado por
+ * [ReferenceAnnotator] a partir do texto dos parágrafos do grupo (ver [Chunker.chunk]).
  */
 data class ChunkDraft(
     val page: Int,
     val charOffset: Int,
     val tokenCount: Int,
     val text: String,
-    val chapter: String? = null,
+    val reference: String? = null,
 )
 
 /**
  * Um parágrafo (ou fragmento de um parágrafo maior que [MAX_OWN_CONTENT_TOKENS] — ver
- * [Chunker.splitOversizedParagraph]) já localizado dentro de uma página.
+ * [Chunker.splitOversizedParagraph]) já localizado dentro de uma página. [reference] é preenchido
+ * por [ReferenceAnnotator] quando um `ReferenceType` é declarado na ingestão (ADR-0013); fragmentos
+ * criados a partir de um parágrafo já anotado ([Chunker.cutParagraphAt]) herdam a mesma referência.
+ * Visibilidade `internal` (não `private`): [ReferenceAnnotator] vive num arquivo separado do mesmo
+ * pacote e precisa ler/copiar este tipo.
  */
-private data class ParagraphUnit(
+internal data class ParagraphUnit(
     val page: Int,
     val charOffset: Int,
     val text: String,
     val tokenCount: Int,
+    val reference: String? = null,
 )
 
 /**
@@ -131,14 +136,25 @@ private data class ParagraphUnit(
  */
 @Component
 class Chunker {
-    fun chunk(pageTexts: Map<Int, String>): List<ChunkDraft> {
-        val units =
+    fun chunk(
+        pageTexts: Map<Int, String>,
+        referenceType: ReferenceType? = null,
+    ): List<ChunkDraft> {
+        val paragraphs =
             pageTexts
                 .toSortedMap()
                 .flatMap { (page, text) -> splitIntoParagraphs(page, text) }
-                .flatMap { unit -> if (unit.tokenCount > MAX_OWN_CONTENT_TOKENS) splitOversizedParagraph(unit) else listOf(unit) }
+        val annotated = if (referenceType != null) ReferenceAnnotator.annotate(paragraphs, referenceType) else paragraphs
+        // NUMBERED_ITEM: funde parágrafos de continuação (mesma reference não-nula do parágrafo
+        // anterior, sem abertura numerada própria) no parágrafo que abriu o item — ver
+        // coalesceItemContinuations. Sem isso, o laço guloso de groupUnits enxerga cada parágrafo
+        // isoladamente e pode fechar um grupo bem no meio de um item (a abertura cabe no orçamento
+        // acumulado, a continuação sozinha não), partindo-o entre dois chunks.
+        val coalesced = if (referenceType == ReferenceType.NUMBERED_ITEM) coalesceItemContinuations(annotated) else annotated
+        val units =
+            coalesced.flatMap { unit -> if (unit.tokenCount > MAX_OWN_CONTENT_TOKENS) splitOversizedParagraph(unit) else listOf(unit) }
 
-        val groups = groupUnits(units)
+        val groups = groupUnits(units, referenceType)
 
         val drafts = mutableListOf<ChunkDraft>()
         var previousOwnText: String? = null
@@ -155,6 +171,7 @@ class Chunker {
                     charOffset = first.charOffset,
                     tokenCount = countTokens(fullText),
                     text = fullText,
+                    reference = groupReference(group, referenceType),
                 )
             previousOwnText = ownText
             previousOwnTokenCount = ownTokenCount
@@ -162,15 +179,89 @@ class Chunker {
         return drafts
     }
 
+    /**
+     * Referência final de um grupo já fechado, conforme o `referenceType` declarado (ADR-0013,
+     * "Chunking atômico por item"). `null` quando nenhum estilo foi declarado. `CHAPTER`: rótulo do
+     * capítulo corrente no primeiro parágrafo do grupo (agrupamento inalterado, um único capítulo
+     * por grupo na prática). `NUMBERED_ITEM`: valor único quando todos os parágrafos do grupo
+     * carregam a mesma referência; intervalo `"primeiro–último"` quando [groupUnits] juntou mais de
+     * um item curto no mesmo grupo (nunca cortando um parágrafo no meio, ver [groupUnits]).
+     */
+    private fun groupReference(
+        group: List<ParagraphUnit>,
+        referenceType: ReferenceType?,
+    ): String? =
+        when (referenceType) {
+            null -> null
+            ReferenceType.CHAPTER -> group.first().reference
+            ReferenceType.NUMBERED_ITEM -> {
+                val references = group.mapNotNull { it.reference }
+                val first = references.firstOrNull()
+                val last = references.lastOrNull()
+                if (first == null || last == null || first == last) first else "$first–$last"
+            }
+        }
+
     private fun overlapTargetTokens(previousOwnTokenCount: Int): Int =
         ceil(previousOwnTokenCount * OVERLAP_TARGET_RATIO).toInt().coerceAtLeast(1)
+
+    /**
+     * Funde cada sequência de [ParagraphUnit]s consecutivas que compartilham a mesma `reference`
+     * não-nula (a abertura de um item numerado + todo parágrafo de continuação seguinte que herdou
+     * a mesma referência, ver [ReferenceAnnotator]) numa única unidade lógica — o item completo.
+     * Só chamada quando `referenceType == NUMBERED_ITEM` (ver [chunk]). Unidades com `reference`
+     * nula (parágrafos antes do primeiro item) nunca são fundidas entre si — preserva o
+     * comportamento de agrupamento já existente para esse trecho, sem alterar como um preâmbulo é
+     * particionado.
+     *
+     * É esse coalescing, e não uma checagem ad-hoc dentro de [groupUnits], que garante que o laço
+     * guloso de agrupamento nunca enxergue um item pela metade: ele só vê unidades que já
+     * representam um item inteiro (ou, se um item sozinho exceder [MAX_OWN_CONTENT_TOKENS], as
+     * fatias produzidas por [splitOversizedParagraph] a partir desta unidade fundida — mesmo caso
+     * já aceito pelo ADR-0013, agora aplicado sobre o item completo em vez de sobre cada parágrafo
+     * isolado).
+     */
+    private fun coalesceItemContinuations(units: List<ParagraphUnit>): List<ParagraphUnit> {
+        val coalesced = mutableListOf<ParagraphUnit>()
+        for (unit in units) {
+            val last = coalesced.lastOrNull()
+            if (last != null && unit.reference != null && unit.reference == last.reference) {
+                coalesced[coalesced.size - 1] =
+                    last.copy(
+                        text = "${last.text}\n\n${unit.text}",
+                        tokenCount = last.tokenCount + unit.tokenCount,
+                    )
+            } else {
+                coalesced += unit
+            }
+        }
+        return coalesced
+    }
 
     /**
      * Agrupa [units] sequencialmente sem exceder [MAX_OWN_CONTENT_TOKENS] por grupo, com estratégia
      * MIN-first (T5b) — ver itens 2/3b do KDoc de [Chunker]: um grupo só fecha abaixo de
      * [MIN_CHUNK_TOKENS] quando não sobra nenhum parágrafo para completá-lo (fim do texto).
+     *
+     * Exceção (ADR-0013, "Chunking atômico por item"): quando [referenceType] é [ReferenceType.NUMBERED_ITEM],
+     * o passo MIN-first (3b) é pulado inteiramente — nunca corta uma unidade (que, graças a
+     * [coalesceItemContinuations], já representa um item inteiro, ou uma fatia de
+     * [splitOversizedParagraph] de um item maior que o teto) para completar o piso, o que colaria
+     * parte de um item ao grupo do item anterior e deixaria o resto desse mesmo item, sozinho,
+     * formando o início do próximo grupo ("misturar dois itens" no sentido do ADR). A atomicidade do
+     * item em si (nunca fechar o grupo bem no meio de um item, mesmo quando ele só cabe todo no
+     * próximo grupo) é garantida antes disso, por [coalesceItemContinuations] fundir a
+     * abertura numerada e suas continuações numa única unidade — este laço guloso enxerga cada
+     * unidade como atômica e nunca a divide, a não ser via [cutParagraphAt]/[splitOversizedParagraph]
+     * (item sozinho maior que [MAX_OWN_CONTENT_TOKENS], caso já aceito pelo ADR). Sem o MIN-first
+     * pulado aqui, um grupo pode legitimamente fechar abaixo de [MIN_CHUNK_TOKENS] — ver
+     * [groupReference] para como a referência final do grupo é computada (valor único ou intervalo).
      */
-    private fun groupUnits(units: List<ParagraphUnit>): List<List<ParagraphUnit>> {
+    private fun groupUnits(
+        units: List<ParagraphUnit>,
+        referenceType: ReferenceType?,
+    ): List<List<ParagraphUnit>> {
+        val skipMinFirst = referenceType == ReferenceType.NUMBERED_ITEM
         val groups = mutableListOf<List<ParagraphUnit>>()
         val remaining = ArrayDeque(units)
         while (remaining.isNotEmpty()) {
@@ -183,8 +274,9 @@ class Chunker {
             }
             // MIN-first: se o grupo ainda não chegou ao mínimo e sobrou um parágrafo que não coube
             // inteiro, corta-o na fronteira de token necessária para completar o grupo até o teto,
-            // devolvendo o restante para o próximo grupo — ver item 3b do KDoc de Chunker.
-            if (tokenSum < MIN_CHUNK_TOKENS && remaining.isNotEmpty()) {
+            // devolvendo o restante para o próximo grupo — ver item 3b do KDoc de Chunker. Pulado
+            // para NUMBERED_ITEM (ver KDoc desta função).
+            if (!skipMinFirst && tokenSum < MIN_CHUNK_TOKENS && remaining.isNotEmpty()) {
                 val next = remaining.removeFirst()
                 val (piece, remainder) = cutParagraphAt(next, MAX_OWN_CONTENT_TOKENS - tokenSum)
                 group += piece
@@ -261,6 +353,7 @@ class Chunker {
                 charOffset = unit.charOffset,
                 text = unit.text.substring(0, pieceEndExclusive),
                 tokenCount = take,
+                reference = unit.reference,
             )
         if (take >= matches.size) return piece to null
         val remainderRaw = unit.text.substring(pieceEndExclusive)
@@ -273,6 +366,7 @@ class Chunker {
                 charOffset = unit.charOffset + pieceEndExclusive + leadingWhitespace,
                 text = remainderTrimmed,
                 tokenCount = matches.size - take,
+                reference = unit.reference,
             )
         return piece to remainder
     }
