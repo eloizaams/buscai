@@ -4,8 +4,7 @@ Ordem sequencial — cada item cabe numa sessão de implementação. T1-T2 em `b
 (subagent `kotlin-implementer`, `ktlintFormat` + testes do módulo ao final de cada uma). T3-T5 em
 `web/` (JS puro, sem `kotlin-implementer` — não é código Kotlin; sem suíte automatizada, verificação
 manual via `/run` no navegador ao final de cada uma, registrando o que foi testado). T6 fecha com
-verificação end-to-end de todos os CAs + `/review`.
-
+verificação end-to-end de todos os CAs + `/review
 - [x] **T1 — Backend: `GET /books`**
   Pacote `com.buscai.backend.catalog`: `BookService` novo (`listAvailable(): List<Book>` —
   combina `BookRepository`+`BookVersionRepository`, filtra por versão ativa com
@@ -30,7 +29,7 @@ verificação end-to-end de todos os CAs + `/review`.
   `GET /` sem `X-Api-Key` devolve `200` com o conteúdo do `index.html`; `GET /chat`/`GET /books`
   sem `X-Api-Key` continuam `401` (a isenção não vazou para as rotas de API).
 
-- [ ] **T3 — Web: shell + gate de chave de acesso**
+- [x] **T3 — Web: shell + gate de chave de acesso**
   `web/index.html` (estrutura da página: cabeçalho, área de gate/overlay, área de chat — vazia
   ainda, populada em T4/T5 —, `<script src="app.js" defer>`), `web/styles.css` (visual simples,
   responsivo — legível em desktop e mobile, CA10), `web/app.js` (substitui o placeholder de T2):
