@@ -128,8 +128,10 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   a esta feature, reaproveitando fixtures/testes já existentes de `specs/ingestao-pdf/` (CA7).
 
 - [x] **T8 — `golden-set.json`, `rag-evaluator` e sincronização de docs**
-  > **Nota (2026-07-21):** o gate do `rag-evaluator` não rodou de verdade nesta sessão — faltam
-  > `VOYAGE_API_KEY`/`ANTHROPIC_API_KEY` e o PDF real do livro no ambiente; ver
+  > **Nota (2026-07-21):** gate do `rag-evaluator` rodado de fato mais tarde na mesma sessão — livro
+  > ingerido de verdade, perguntas reais via `web/` contra o backend real. Groundedness 3/3, recall
+  > com uma falha real (consulta literal por número de item sem contexto semântico), não-bloqueante
+  > para esta feature — ver bloco "avaliação real do golden set" em `specs/eval/history.md` e
   > `$notaLivroDosEspiritos` em `specs/eval/golden-set.json` para o detalhe completo.
   Adicionar a `specs/eval/golden-set.json` casos cobrindo um livro `numbered-item` real (*O Livro
   dos Espíritos* — as perguntas "qual a pergunta 157?", "qual a pergunta 158?" e "o que acontece no

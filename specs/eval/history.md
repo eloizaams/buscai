@@ -145,3 +145,61 @@ inventado. Assim que o livro for ingerido de verdade (`--book-id=o-livro-dos-esp
 `rag-evaluator` de fato contra os 3 casos novos e corrigir `reference`/`expected_answer_gist` no
 golden set se divergirem do que a ingestão real produzir.
 [2026-07-21T11:54:07Z] eval executado
+[2026-07-21T12:04:12Z] eval executado
+[2026-07-21T15:41:55Z] eval executado
+[2026-07-21T15:43:52Z] eval executado
+[2026-07-21T15:47:20Z] eval executado
+[2026-07-21T15:51:45Z] eval executado
+[2026-07-21T15:52:22Z] eval executado
+[2026-07-21T15:55:03Z] eval executado
+[2026-07-21T15:57:14Z] eval executado
+[2026-07-21T16:00:15Z] eval executado
+[2026-07-21T18:39:21Z] eval executado
+[2026-07-21T18:54:19Z] eval executado
+[2026-07-21T18:54:58Z] eval executado
+
+## Resultado: avaliação real do golden set (referencia-estruturada T8, 2026-07-21)
+
+**Status**: ✅ Gate executado de fato — supersede o bloco "avaliação real não executada" acima.
+
+### Contexto
+Livro *O Livro dos Espíritos* ingerido de verdade pelo dono do produto (`--book-id=o-livro-dos-espiritos
+--reference-style=numbered-item`, PDF local, Voyage embeddings reais) contra um Postgres/Neon real.
+Servidor real subido localmente (`./gradlew bootRun`) e as perguntas feitas pelo `web/` no navegador
+contra o backend real (geração real via Claude) — não um script de eval automatizado (não existe um
+no repo, confirmado durante a T8) nem uma execução por mim (Claude Code), mas pelo próprio usuário,
+que colou as respostas de volta para análise.
+
+### Groundedness: 3/3
+Nenhuma resposta inventou conteúdo fora dos chunks reais; nenhuma citação (inline ou em `sources`)
+mencionou página; todas citaram o número do item corretamente quando encontraram contexto. Destaque:
+ao ser perguntado por um item 158 com conteúdo incorreto sugerido na pergunta, o modelo recusou
+corretamente a premissa errada e ainda assim identificou de forma precisa o item 159 vizinho — sem
+inventar, puramente fundamentado nos chunks recuperados.
+
+### Recall: 1 falha real observada, não é regressão desta feature
+- "qual a pergunta 157?" (frase literal, sem nome do livro, sem scope): **NoRelevantContext** na
+  primeira tentativa — nenhum `event: sources`, resposta correta ("não encontrei essa informação"),
+  mas o item 157 não foi recuperado. Reformulada semanticamente ("o que acontece depois da morte?"),
+  recuperou o item 157 corretamente, com o texto real do item.
+- "qual a pergunte 158 do livro dos espíritos?" (com typo, mas com nome do livro): recuperou o item
+  158 correto de primeira.
+- Causa provável: busca literal por número de item ("157") sem outro contexto semântico não é bem
+  servida pela busca híbrida atual (vetorial + lexical) — **não é uma regressão introduzida por esta
+  feature** (RRF/retrieval não mudaram aqui, só o rótulo de citação, T3/T4). É exatamente o caso que
+  `specs/referencia-estruturada/plan.md` ("Fora do plano desta feature") já registra como follow-up:
+  "Busca estruturada exata por número de item (consulta direta em `reference` no retrieval)".
+
+### Conteúdo real corrige a aproximação de boa-fé do golden set
+`expected_answer_gist`/notas de `espiritos-001`/`espiritos-002`/`espiritos-003` em
+`specs/eval/golden-set.json` foram atualizados com o texto real dos itens 157/158 (a aproximação
+original estava topicamente certa — bloco sobre morte/reencarnação — mas com o texto exato diferente
+do livro real).
+
+### Recomendação
+✅ **Aprovar a feature `referencia-estruturada`** — groundedness e formato de citação (item, nunca
+página) validados contra conteúdo real. A falha de recall para consulta literal por número de item
+não bloqueia esta feature (comportamento de retrieval pré-existente, não alterado por ela); registrar
+como motivação real e concreta para o follow-up já previsto de busca estruturada exata por
+`reference`, quando essa spec futura for priorizada.
+[2026-07-21T19:20:00Z] eval executado (real, via web/ contra ingestão de produção — ver bloco acima)
