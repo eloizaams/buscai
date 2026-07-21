@@ -301,7 +301,7 @@ class GenerationAcceptanceTest {
     }
 
     @Test
-    fun `CA1 - pergunta com contexto relevante produz resposta citando livro e pagina`() {
+    fun `CA1 - pergunta com contexto relevante produz resposta citando livro, nunca pagina`() {
         val book = persistBookWithChunk("Bentinho e Capitu se conhecem quando crianças.", page = 42)
         fakeClaudeClient.generateTokens = listOf("Conforme o livro, ", "Bentinho e Capitu se conheciam.")
 
@@ -310,7 +310,7 @@ class GenerationAcceptanceTest {
 
         val generateCall = fakeClaudeClient.generateCalls.single()
         assertTrue(generateCall.userPrompt.contains(book.title), generateCall.userPrompt)
-        assertTrue(generateCall.userPrompt.contains("p. 42"), generateCall.userPrompt)
+        assertFalse(generateCall.userPrompt.contains("p. 42"), generateCall.userPrompt)
 
         val tokens = extractTokens(body)
         assertEquals(fakeClaudeClient.generateTokens, tokens, "a resposta do fake deveria ser entregue integralmente ao cliente")

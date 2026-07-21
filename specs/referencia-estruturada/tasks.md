@@ -67,7 +67,7 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   `reference`/`referenceType` (nenhuma regressão de comportamento de busca — só o campo de
   citação muda de nome/tipo).
 
-- [ ] **T4 — `GenerationService`: prompt por capítulo/item + `onSourcesResolved`**
+- [x] **T4 — `GenerationService`: prompt por capítulo/item + `onSourcesResolved`**
   `ANSWER_SYSTEM_PROMPT` reescrito (supersede o texto atual, `plan.md` "Contratos entre camadas"):
   instrui citar livro + capítulo ou livro + número do item/pergunta diretamente no texto da
   resposta, e citar só o livro (sem inventar capítulo/item/página) quando o chunk não tiver

@@ -17,7 +17,9 @@ import com.buscai.backend.generation.claude.HistoryTurn
 import com.buscai.backend.generation.conversation.ConversationRepository
 import com.buscai.backend.generation.conversation.MessageRepository
 import com.buscai.backend.generation.conversation.MessageRole
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import com.buscai.backend.retrieval.RetrievalScope
+import com.buscai.backend.retrieval.RetrievedChunk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -190,6 +192,8 @@ class GenerationServiceTest {
         suffix: UUID,
         text: String,
         page: Int = 1,
+        reference: String? = null,
+        referenceType: ReferenceType? = null,
     ): Book {
         val book = bookRepository.save(Book(id = "livro-$suffix", title = "Livro $suffix"))
         val version =
@@ -219,6 +223,8 @@ class GenerationServiceTest {
                 tokenCount = 10,
                 text = text,
                 embedding = oneHotEmbedding(0),
+                reference = reference,
+                referenceType = referenceType,
             ),
         )
         return activatedBook
@@ -284,7 +290,7 @@ class GenerationServiceTest {
     }
 
     @Test
-    fun `Found monta o prompt esperado e persiste a resposta completa acumulada dos deltas`() {
+    fun `Found monta o prompt esperado (sem referencia) e persiste a resposta completa acumulada dos deltas`() {
         val deviceId = "device-${UUID.randomUUID()}"
         val suffix = UUID.randomUUID()
         val book = persistBookWithChunk(suffix, "Bentinho e Capitu se conhecem quando crianças.", page = 42)
@@ -299,10 +305,10 @@ class GenerationServiceTest {
 
         assertEquals(1, fakeClaudeClient.generateCalls.size)
         val generateCall = fakeClaudeClient.generateCalls.single()
-        assertTrue(generateCall.userPrompt.contains(book.title), generateCall.userPrompt)
-        assertTrue(generateCall.userPrompt.contains("p. 42"), generateCall.userPrompt)
+        assertTrue(generateCall.userPrompt.contains("[${book.title}]"), generateCall.userPrompt)
         assertTrue(generateCall.userPrompt.contains("Bentinho e Capitu"), generateCall.userPrompt)
         assertTrue(generateCall.userPrompt.contains("quem é Capitu?"), generateCall.userPrompt)
+        assertTrue(!generateCall.userPrompt.contains("p."), generateCall.userPrompt)
         assertEquals(2048L, generateCall.maxTokens)
 
         assertEquals("Resposta completa.", result.text)
@@ -311,6 +317,90 @@ class GenerationServiceTest {
         assertEquals(2, messages.size)
         assertEquals(MessageRole.ASSISTANT, messages[1].role)
         assertEquals("Resposta completa.", messages[1].content)
+    }
+
+    @Test
+    fun `Found monta o prompt com rotulo de capitulo quando referenceType e CHAPTER`() {
+        val deviceId = "device-${UUID.randomUUID()}"
+        val suffix = UUID.randomUUID()
+        val book =
+            persistBookWithChunk(
+                suffix,
+                "Bentinho e Capitu se conhecem quando crianças.",
+                page = 42,
+                reference = "Capítulo XII",
+                referenceType = ReferenceType.CHAPTER,
+            )
+
+        generationService.answer(deviceId, null, "quem é Capitu?", RetrievalScope.Books(setOf(book.id)))
+
+        val generateCall = fakeClaudeClient.generateCalls.single()
+        assertTrue(generateCall.userPrompt.contains("[${book.title}, capítulo: Capítulo XII]"), generateCall.userPrompt)
+        assertTrue(!generateCall.userPrompt.contains("p."), generateCall.userPrompt)
+    }
+
+    @Test
+    fun `Found monta o prompt com rotulo de item quando referenceType e NUMBERED_ITEM`() {
+        val deviceId = "device-${UUID.randomUUID()}"
+        val suffix = UUID.randomUUID()
+        val book =
+            persistBookWithChunk(
+                suffix,
+                "157. Que é a morte?",
+                page = 10,
+                reference = "157",
+                referenceType = ReferenceType.NUMBERED_ITEM,
+            )
+
+        generationService.answer(deviceId, null, "o que é a morte?", RetrievalScope.Books(setOf(book.id)))
+
+        val generateCall = fakeClaudeClient.generateCalls.single()
+        assertTrue(generateCall.userPrompt.contains("[${book.title}, item: 157]"), generateCall.userPrompt)
+        assertTrue(!generateCall.userPrompt.contains("p."), generateCall.userPrompt)
+    }
+
+    @Test
+    fun `onSourcesResolved e chamado uma unica vez no ramo Found, antes de qualquer onToken`() {
+        val deviceId = "device-${UUID.randomUUID()}"
+        val suffix = UUID.randomUUID()
+        val book = persistBookWithChunk(suffix, "Bentinho e Capitu se conhecem quando crianças.")
+
+        val resolvedSources = mutableListOf<List<RetrievedChunk>>()
+        val eventOrder = mutableListOf<String>()
+
+        generationService.answer(
+            deviceId,
+            null,
+            "quem é Capitu?",
+            RetrievalScope.Books(setOf(book.id)),
+            onSourcesResolved = { chunks ->
+                resolvedSources += chunks
+                eventOrder += "sources"
+            },
+            onToken = { eventOrder += "token" },
+        )
+
+        assertEquals(1, resolvedSources.size, "onSourcesResolved deveria ser chamado exatamente uma vez")
+        assertEquals(1, resolvedSources.single().size)
+        assertEquals(book.id, resolvedSources.single().single().bookId)
+        assertEquals("sources", eventOrder.first(), "onSourcesResolved deveria rodar antes de qualquer onToken")
+        assertTrue(eventOrder.drop(1).all { it == "token" })
+    }
+
+    @Test
+    fun `onSourcesResolved nao e chamado no ramo NoRelevantContext`() {
+        val deviceId = "device-${UUID.randomUUID()}"
+
+        var called = false
+        generationService.answer(
+            deviceId,
+            null,
+            "pergunta sem contexto",
+            noRelevantContextScope(),
+            onSourcesResolved = { called = true },
+        )
+
+        assertTrue(!called, "onSourcesResolved não deveria ser chamado quando NoRelevantContext")
     }
 
     @Test
