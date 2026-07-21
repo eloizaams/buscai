@@ -129,3 +129,30 @@ arquivos estáticos do `web/` (ver ADR-0012).
 
 - [2026-07-20] Spec criada. Decisão de segurança tomada de forma autônoma (variante refinada de
   (b) do ADR-0011), pendente validação do `android-architect` antes de virar ADR-0012 formal.
+- [2026-07-21] T6 — verificação end-to-end de CA1-CA11 (T3/T4/T5 via Playwright contra backend
+  local + Postgres com "Livro dos Espíritos" real ingerido via CLI; parte contra um mock local
+  para não gastar crédito das APIs pagas em cenários de erro/rede; parte confirmada manualmente
+  pelo usuário no navegador com `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` reais):
+  - CA1 (streaming progressivo), CA3 (seletor todos/subconjunto), CA4 (reabrir conversa com
+    histórico completo), CA5 (nova conversa), CA6 (gate só na primeira visita), CA7 (chave
+    inválida reabre o gate com mensagem), CA8 ("aguardando resposta" antes do 1º token), CA10
+    (sem overflow horizontal em viewport mobile 390px), CA11 (nenhuma chave hardcoded em `web/`,
+    checado via grep) — todos OK.
+  - CA2 (citação/disclaimer como texto na resposta): mecanismo de exibição OK (texto do stream
+    renderizado sem parsing estruturado); qualidade do conteúdo em si (retrieval/geração, Fase 5)
+    ficou abaixo do esperado do usuário num caso pontual — fora do escopo desta feature
+    (constitution.md §4 exige `rag-evaluator` para mudança nessa camada); registrado aqui para
+    investigação futura, não bloqueia esta feature.
+  - CA9 (erro genérico, nunca detalhe cru): dois bugs achados e corrigidos durante a verificação,
+    ambos em `web/app.js` — (1) quando a conexão cai a meio do streaming (não um evento `error`
+    limpo do backend, mas socket destruído), a mensagem genérica de erro não aparecia, deixando o
+    balão só com o texto parcial sem indicar falha; corrigido para sempre anexar a mensagem
+    genérica ao conteúdo já recebido. (2) o parsing SSE usava `.trim()` na linha `data:` inteira,
+    comendo espaços à direita que fazem parte do próprio delta de texto do token — concatenar
+    "Resposta de teste " + "com citação..." virava "Resposta de testecom citação..."; corrigido
+    para remover só o único espaço delimitador logo após `data:`, por spec do protocolo SSE.
+  - Um terceiro achado foi falso-positivo de teste (não bug de produto): checagem de CA8 falhou
+    numa rodada porque o mock local respondia rápido demais (sem latência de rede real), fazendo
+    o teste correr depois que o token já tinha chegado — não reflete o comportamento real contra
+    o backend (que tem latência de rede/geração de verdade). Confirmado reintroduzindo um atraso
+    artificial no mock.

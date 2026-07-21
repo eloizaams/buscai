@@ -287,7 +287,14 @@
         if (line.startsWith("event:")) {
           currentEvent = line.slice("event:".length).trim();
         } else if (line.startsWith("data:")) {
-          currentDataLines.push(line.slice("data:".length).trim());
+          // Só o espaço logo após "data:" é delimitador (protocolo SSE) — o resto do
+          // conteúdo, incluindo espaços à direita, é o próprio delta de texto do token
+          // e precisa ser preservado, senão a concatenação perde espaços entre palavras.
+          let value = line.slice("data:".length);
+          if (value.startsWith(" ")) {
+            value = value.slice(1);
+          }
+          currentDataLines.push(value);
         }
       }
     }
@@ -334,11 +341,11 @@
     } catch (error) {
       console.error(error);
       if (!state.messages.includes(assistantMessage)) {
-        assistantMessage.content = GENERIC_STREAM_ERROR_MESSAGE;
         state.messages.push(assistantMessage);
-      } else if (assistantMessage.content === "") {
-        assistantMessage.content = GENERIC_STREAM_ERROR_MESSAGE;
       }
+      assistantMessage.content = assistantMessage.content
+        ? assistantMessage.content + "\n\n" + GENERIC_STREAM_ERROR_MESSAGE
+        : GENERIC_STREAM_ERROR_MESSAGE;
       renderMessages();
     } finally {
       setStreaming(false);
