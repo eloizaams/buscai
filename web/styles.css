@@ -99,11 +99,29 @@ body {
 
 #app {
   display: flex;
+  flex-direction: column;
   min-height: calc(100vh - 3.2rem);
 }
 
 #app[hidden] {
   display: none;
+}
+
+.app-status {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-status.error {
+  color: var(--error);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .sidebar {
@@ -254,7 +272,7 @@ body {
 }
 
 @media (max-width: 40rem) {
-  #app {
+  .app-body {
     flex-direction: column;
   }
 

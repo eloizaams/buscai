@@ -156,3 +156,23 @@ arquivos estáticos do `web/` (ver ADR-0012).
     o teste correr depois que o token já tinha chegado — não reflete o comportamento real contra
     o backend (que tem latência de rede/geração de verdade). Confirmado reintroduzindo um atraso
     artificial no mock.
+- [2026-07-21] `/review` (`code-reviewer`) sobre o diff completo de `backend/`+`web/` da branch
+  contra `main`. Nenhum problema de segurança/contrato/camada no `backend/`. Achados em
+  `web/app.js`, todos corrigidos e reverificados via Playwright (mock local com atrasos/erros
+  simulados por rota, sem gastar crédito de API paga):
+  - **Crítico** — condição de corrida ao trocar de conversa/"nova conversa" enquanto um
+    `GET /conversations/{id}` anterior ainda estava em voo: a resposta de rede que chegasse por
+    último vencia, não o último clique do usuário, podendo desfazer silenciosamente a ação mais
+    recente. Corrigido com um contador de "token de navegação" incrementado a cada clique em
+    conversa/nova-conversa; toda resolução de `openConversation` descarta o resultado se não for
+    mais o token vigente.
+  - **Crítico** — CA9 não cobria erros de `GET /books`/`GET /conversations`/
+    `GET /conversations/{id}` (fora do fluxo de streaming do chat): iam só para `console.error`,
+    sem nada visível ao usuário — sidebar vazia ficava indistinguível de "ainda sem dados".
+    Corrigido com um banner de status genérico (`#app-status`) no topo de `#app`, reusado também
+    para o achado de Atenção abaixo.
+  - **Atenção** — sem indicador de carregamento para `/books`/`/conversations`/
+    `/conversations/{id}`, relevante no cold start (ADR-0006). Resolvido pelo mesmo
+    `#app-status` acima ("Carregando livros e conversas...", "Carregando conversa...").
+  - **Sugestão** — comentário desatualizado em `ApiSecurityPaths.kt` (carry-over de T2, dizia que
+    `app.js`/`styles.css` "ainda não existem"). Removido.

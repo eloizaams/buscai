@@ -72,7 +72,7 @@ verificação end-to-end de todos os CAs + `/review
   simular erro (ex. desligar o backend a meio de uma pergunta) mostra a mensagem genérica sem
   travar a UI.
 
-- [ ] **T6 — Verificação end-to-end (CA1-CA11) + `/review`**
+- [x] **T6 — Verificação end-to-end (CA1-CA11) + `/review`**
   Rodar o app completo via `/run` (backend local + `web/` servido same-origin, conforme T2)
   cobrindo cada CA da `spec.md` em sequência (CA1 a CA11) e registrar o resultado nas notas
   datadas da `spec.md`. Rodar `/review` (`code-reviewer`) sobre o diff completo de `backend/` e

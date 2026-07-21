@@ -5,12 +5,10 @@ private const val HEALTH_CHECK_PATH = "/actuator/health"
 /**
  * Arquivos estáticos do cliente web fino (`web/`, servido same-origin pelo próprio Spring Boot via
  * o resource handler default de `classpath:/static/`, ver `backend/build.gradle.kts` — task
- * `copyWebStatic` — e `specs/cliente-web/plan.md`, seção "Arquivos estáticos"). `app.js`/
- * `styles.css` ainda não existem
- * fisicamente nesta task (chegam em T3 de `specs/cliente-web/tasks.md`), mas já isentar agora evita
- * mais uma task tocando este arquivo depois. Servir HTML/CSS/JS não gasta crédito em API paga
- * (ADR-0005 só exige a chave antes de chamadas a Claude/Voyage) — as chamadas de API que o JS
- * carregado faz depois (`/chat`, `/conversations`, `/books`) continuam 100% protegidas, sem exceção.
+ * `copyWebStatic` — e `specs/cliente-web/plan.md`, seção "Arquivos estáticos"). Servir HTML/CSS/JS
+ * não gasta crédito em API paga (ADR-0005 só exige a chave antes de chamadas a Claude/Voyage) — as
+ * chamadas de API que o JS carregado faz depois (`/chat`, `/conversations`, `/books`) continuam
+ * 100% protegidas, sem exceção.
  */
 private val STATIC_WEB_PATHS = setOf("/", "/index.html", "/app.js", "/styles.css")
 

@@ -38,9 +38,28 @@
   const chatSubmitEl = chatFormEl.querySelector("button[type=submit]");
   const messageListEl = document.getElementById("message-list");
   const chatStatusEl = document.getElementById("chat-status");
+  const appStatusEl = document.getElementById("app-status");
 
   const GENERIC_STREAM_ERROR_MESSAGE =
     "Ocorreu um erro ao gerar a resposta. Tente novamente em instantes.";
+  const GENERIC_LOAD_ERROR_MESSAGE =
+    "Não foi possível carregar os dados agora. Tente novamente em instantes.";
+
+  // Incrementado a cada troca de conversa/nova conversa: uma resposta de fetch de uma
+  // navegação já superada por uma ação mais recente do usuário se identifica e é descartada
+  // (evita que a resposta de um clique antigo sobrescreva o resultado de um clique mais novo).
+  let navigationToken = 0;
+
+  function setAppStatus(text, { isError = false } = {}) {
+    if (!text) {
+      appStatusEl.hidden = true;
+      appStatusEl.classList.remove("error");
+      return;
+    }
+    appStatusEl.textContent = text;
+    appStatusEl.classList.toggle("error", isError);
+    appStatusEl.hidden = false;
+  }
 
   function showGate(errorMessage) {
     gateEl.hidden = false;
@@ -86,6 +105,7 @@
   }
 
   async function loadCatalogAndConversations() {
+    setAppStatus("Carregando livros e conversas...");
     try {
       const [books, conversations] = await Promise.all([
         fetchJson("/books"),
@@ -95,11 +115,13 @@
       state.conversations = conversations;
       renderBookList();
       renderConversationList();
+      setAppStatus(null);
     } catch (error) {
       if (error.invalidApiKey) {
         handleInvalidApiKey();
       } else {
         console.error(error);
+        setAppStatus(GENERIC_LOAD_ERROR_MESSAGE, { isError: true });
       }
     }
   }
@@ -156,6 +178,8 @@
     if (state.streaming) {
       return;
     }
+    navigationToken += 1;
+    setAppStatus(null);
     state.currentConversationId = null;
     state.messages = [];
     renderConversationList();
@@ -171,8 +195,14 @@
   });
 
   async function openConversation(conversationId) {
+    const token = ++navigationToken;
+    setAppStatus("Carregando conversa...");
     try {
       const detail = await fetchJson(`/conversations/${conversationId}`);
+      if (token !== navigationToken) {
+        // uma acao de navegacao mais recente (outra conversa, ou "nova conversa") ja aconteceu
+        return;
+      }
       state.currentConversationId = detail.id;
       state.messages = detail.messages.map((message) => ({
         role: message.role,
@@ -180,11 +210,16 @@
       }));
       renderConversationList();
       renderMessages();
+      setAppStatus(null);
     } catch (error) {
+      if (token !== navigationToken) {
+        return;
+      }
       if (error.invalidApiKey) {
         handleInvalidApiKey();
       } else {
         console.error(error);
+        setAppStatus(GENERIC_LOAD_ERROR_MESSAGE, { isError: true });
       }
     }
   }
@@ -198,6 +233,7 @@
         handleInvalidApiKey();
       } else {
         console.error(error);
+        setAppStatus(GENERIC_LOAD_ERROR_MESSAGE, { isError: true });
       }
     }
   }
