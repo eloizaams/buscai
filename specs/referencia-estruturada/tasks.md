@@ -101,7 +101,7 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   produz `event: sources`; chunk sem referência aparece no JSON com `reference`/`referenceType`
   `null`, nunca omitido da lista (CA6 da spec).
 
-- [ ] **T6 — Compatibilidade do `web/app.js` com evento SSE desconhecido**
+- [x] **T6 — Compatibilidade do `web/app.js` com evento SSE desconhecido**
   Inspecionar o parser SSE de `web/app.js` (já em produção, PR #11): confirmar que despacha por
   `event.type`/nome do evento (não assume que todo `data:` recebido é um delta de `token`) e que um
   `event:` não reconhecido (ex. `sources`, antes de a UI de fontes existir) é ignorado sem quebrar o
