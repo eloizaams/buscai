@@ -20,7 +20,27 @@
     </form>
   </div>
 
-  <main id="app" hidden></main>
+  <main id="app" hidden>
+    <aside id="sidebar" class="sidebar">
+      <button id="new-conversation-btn" type="button">Nova conversa</button>
+
+      <section class="scope-selector">
+        <h2>Livros</h2>
+        <label class="scope-all">
+          <input id="scope-all" type="checkbox" checked />
+          Todos os livros
+        </label>
+        <ul id="scope-book-list" class="scope-book-list"></ul>
+      </section>
+
+      <section class="conversation-history">
+        <h2>Conversas</h2>
+        <ul id="conversation-list" class="conversation-list"></ul>
+      </section>
+    </aside>
+
+    <section id="chat" class="chat"></section>
+  </main>
 
   <script src="app.js" defer></script>
 </body>

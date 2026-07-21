@@ -41,7 +41,7 @@ verificação end-to-end de todos os CAs + `/review
   primeira visita (localStorage limpo) mostra o gate; preencher e submeter fecha o gate; recarregar
   a página não mostra o gate de novo (CA6).
 
-- [ ] **T4 — Web: catálogo de livros + lista de conversas**
+- [x] **T4 — Web: catálogo de livros + lista de conversas**
   `web/app.js`: ao fechar o gate (ou já ter chave salva), dispara `GET /books` e
   `GET /conversations` em paralelo, ambos com `X-Api-Key`+`X-Device-Id`. `401`/`403` em qualquer
   uma reabre o gate com uma mensagem de chave inválida (CA7) e limpa `buscai_api_key` do
