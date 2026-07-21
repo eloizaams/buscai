@@ -32,7 +32,7 @@ e os testes do módulo (`backend/`) ao final de cada task que toca Kotlin.
   existentes (nenhuma regressão); `ChunkValidatorTest` confirmando o piso pulado só para
   `NUMBERED_ITEM`.
 
-- [ ] **T2 — Migration V4, `Chunk`/`BookVersion`, `IngestArgsParser`/`IngestionService` (fim a fim
+- [x] **T2 — Migration V4, `Chunk`/`BookVersion`, `IngestArgsParser`/`IngestionService` (fim a fim
   na ingestão)**
   `V4__chunk_reference.sql` (Flyway) exatamente como `plan.md`, seção "Schema" (add
   `reference`/`reference_type` em `chunk`, add `reference_type` em `book_version`, backfill,

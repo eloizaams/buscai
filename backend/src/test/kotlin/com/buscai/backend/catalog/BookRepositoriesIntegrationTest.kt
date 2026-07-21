@@ -1,5 +1,6 @@
 package com.buscai.backend.catalog
 
+import com.buscai.backend.ingestion.chunking.ReferenceType
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -132,7 +133,8 @@ class BookRepositoriesIntegrationTest {
                 tokenCount = 512,
                 text = "Trecho de teste do livro.",
                 embedding = embedding,
-                chapter = "Capítulo 1",
+                reference = "Capítulo 1",
+                referenceType = ReferenceType.CHAPTER,
             )
         chunkRepository.save(chunk)
 
@@ -142,14 +144,15 @@ class BookRepositoriesIntegrationTest {
         assertEquals(340, found.charOffset)
         assertEquals(512, found.tokenCount)
         assertEquals("Trecho de teste do livro.", found.text)
-        assertEquals("Capítulo 1", found.chapter)
+        assertEquals("Capítulo 1", found.reference)
+        assertEquals(ReferenceType.CHAPTER, found.referenceType)
         assertEquals(EMBEDDING_DIMENSIONS, found.embedding.size)
         assertTrue(embedding.contentEquals(found.embedding), "embedding recuperado deveria ser igual ao gravado")
         assertNotNull(found.createdAt)
     }
 
     @Test
-    fun `salva e recupera um Chunk sem chapter (campo opcional)`() {
+    fun `salva e recupera um Chunk sem reference nem referenceType (campos opcionais)`() {
         val book = bookRepository.save(Book(id = "helena", title = "Helena"))
         val version =
             bookVersionRepository.save(
@@ -177,7 +180,8 @@ class BookRepositoriesIntegrationTest {
             )
 
         val found = chunkRepository.findById(chunk.id).orElseThrow()
-        assertNull(found.chapter)
+        assertNull(found.reference)
+        assertNull(found.referenceType)
     }
 
     @Test
