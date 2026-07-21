@@ -6,8 +6,8 @@ própria no backend — não há import de PDF pelo cliente.
 
 **Cliente prioritário: web app fino, não o app Android** ([ADR-0011](docs/adr/0011-cliente-web-fino-primeiro-android-adiado.md),
 2026-07-17) — `android/` é scaffold pausado, mantido intocado; o cliente web (`web/`, HTML/CSS/JS
-puro, sem framework/build step) nasce via `/spec-feature` quando priorizado. Convenções da seção
-`android/` abaixo continuam valendo se/quando aquele trabalho for retomado.
+puro, sem framework/build step) nasce via `/spec-feature` quando priorizado. Convenções em
+`android/CLAUDE.md` continuam valendo se/quando aquele trabalho for retomado.
 
 **Antes de qualquer decisão de arquitetura, leia `docs/adr/`.** É a fonte da verdade — não
 redecida modelo de embedding, vector DB, framework backend, hospedagem ou autenticação; se algo
@@ -35,48 +35,6 @@ os comandos Gradle dentro do diretório correto, nunca da raiz do repo.
   streaming (ADR-0004), autenticação por chave estática + rate limit (ADR-0005), hospedagem em
   Neon (Postgres) + Render/Fly (API), ambos free tier — logo com cold start ocasional (ADR-0006),
   e histórico de conversa persistido no backend, não no app (ADR-0007).
-
-## android/ — app Android
-
-Stack: Kotlin, Jetpack Compose, Hilt, minSdk 26, AGP 9 (Kotlin embutido — **não** aplicar o plugin
-`org.jetbrains.kotlin.android`, ver `android/gradle/libs.versions.toml`), Gradle version catalog.
-
-Comandos (rodar dentro de `android/`):
-```
-./gradlew ktlintFormat              # formata antes de considerar qualquer tarefa concluída
-./gradlew testDebugUnitTest         # testes unitários do módulo :app
-./gradlew lint                      # Android lint
-./gradlew :app:assembleDebug        # build (exige Android SDK instalado)
-```
-
-Convenções:
-- Sem lógica de negócio em `@Composable` — Composables só leem estado de um `ViewModel`/`UiState`.
-- MVVM: `ViewModel` expõe `StateFlow<UiState>`, nunca `LiveData`.
-- Toda chamada de rede passa pelo cliente HTTP do backend (nunca chamar Claude/Voyage direto do
-  app — a key nunca existe no cliente, ver ADR-0004/ADR-0005).
-- `BACKEND_BASE_URL`/`BACKEND_API_KEY` vêm de `BuildConfig` (hoje com placeholder em
-  `app/build.gradle.kts` — sobrescrever localmente, nunca commitar valor real).
-
-## backend/ — API + ingestão
-
-Stack: Kotlin, Spring Boot 4, Spring Data JPA, Postgres (`pgvector`), Gradle Kotlin DSL.
-
-Comandos (rodar dentro de `backend/`):
-```
-./gradlew ktlintFormat   # formata antes de considerar qualquer tarefa concluída
-./gradlew test           # testes (contextLoads sobe com H2 em memória — ver src/test/resources)
-./gradlew build          # build + testes + ktlint check
-```
-
-Convenções:
-- Sem acesso direto a `pgvector`/repositório fora da camada de serviço.
-- Toda variável sensível (`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `BUSCAI_API_KEY`,
-  `DATABASE_URL`/`DATABASE_USERNAME`/`DATABASE_PASSWORD`) só via variável de ambiente —
-  ver `src/main/resources/application.yml`. Nunca hardcode nem commite um valor real.
-- Endpoints que chamam Claude/Voyage devem validar o header `X-Api-Key` (ADR-0005) antes de gastar
-  crédito nas APIs pagas.
-- Testes que precisam de Postgres real (pgvector) usam Testcontainers — a partir da Fase 3, quando
-  as entidades existirem. O `contextLoads` atual não testa nada específico de pgvector de propósito.
 
 ## Git flow
 
