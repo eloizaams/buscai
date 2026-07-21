@@ -39,7 +39,20 @@
       </section>
     </aside>
 
-    <section id="chat" class="chat"></section>
+    <section id="chat" class="chat">
+      <div id="message-list" class="message-list"></div>
+      <p id="chat-status" class="chat-status" hidden></p>
+      <form id="chat-form" class="chat-form">
+        <input
+          id="chat-input"
+          type="text"
+          placeholder="Pergunte sobre os livros selecionados..."
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
   </main>
 
   <script src="app.js" defer></script>

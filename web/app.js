@@ -33,6 +33,14 @@
   const scopeBookListEl = document.getElementById("scope-book-list");
   const conversationListEl = document.getElementById("conversation-list");
   const newConversationBtnEl = document.getElementById("new-conversation-btn");
+  const chatFormEl = document.getElementById("chat-form");
+  const chatInputEl = document.getElementById("chat-input");
+  const chatSubmitEl = chatFormEl.querySelector("button[type=submit]");
+  const messageListEl = document.getElementById("message-list");
+  const chatStatusEl = document.getElementById("chat-status");
+
+  const GENERIC_STREAM_ERROR_MESSAGE =
+    "Ocorreu um erro ao gerar a resposta. Tente novamente em instantes.";
 
   function showGate(errorMessage) {
     gateEl.hidden = false;
@@ -145,9 +153,197 @@
   }
 
   newConversationBtnEl.addEventListener("click", () => {
+    if (state.streaming) {
+      return;
+    }
     state.currentConversationId = null;
     state.messages = [];
     renderConversationList();
+    renderMessages();
+  });
+
+  conversationListEl.addEventListener("click", (event) => {
+    const li = event.target.closest("li[data-conversation-id]");
+    if (!li || state.streaming) {
+      return;
+    }
+    openConversation(li.dataset.conversationId);
+  });
+
+  async function openConversation(conversationId) {
+    try {
+      const detail = await fetchJson(`/conversations/${conversationId}`);
+      state.currentConversationId = detail.id;
+      state.messages = detail.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      }));
+      renderConversationList();
+      renderMessages();
+    } catch (error) {
+      if (error.invalidApiKey) {
+        handleInvalidApiKey();
+      } else {
+        console.error(error);
+      }
+    }
+  }
+
+  async function loadConversationsOnly() {
+    try {
+      state.conversations = await fetchJson("/conversations");
+      renderConversationList();
+    } catch (error) {
+      if (error.invalidApiKey) {
+        handleInvalidApiKey();
+      } else {
+        console.error(error);
+      }
+    }
+  }
+
+  function renderMessages() {
+    messageListEl.innerHTML = "";
+    for (const message of state.messages) {
+      if (message.role === "ASSISTANT" && message.content === "") {
+        continue;
+      }
+      const bubble = document.createElement("div");
+      bubble.className = "message message-" + message.role.toLowerCase();
+      bubble.textContent = message.content;
+      messageListEl.appendChild(bubble);
+    }
+    messageListEl.scrollTop = messageListEl.scrollHeight;
+  }
+
+  function setChatStatus(text) {
+    if (text) {
+      chatStatusEl.textContent = text;
+      chatStatusEl.hidden = false;
+    } else {
+      chatStatusEl.hidden = true;
+    }
+  }
+
+  function setStreaming(streaming) {
+    state.streaming = streaming;
+    chatInputEl.disabled = streaming;
+    chatSubmitEl.disabled = streaming;
+  }
+
+  async function consumeChatStream(bodyStream, assistantMessage) {
+    const reader = bodyStream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let currentEvent = null;
+    let currentDataLines = [];
+
+    function dispatch(eventName, data) {
+      if (eventName === "conversation") {
+        const isNewConversation = state.currentConversationId === null;
+        state.currentConversationId = data;
+        if (isNewConversation) {
+          loadConversationsOnly();
+        }
+        return;
+      }
+      if (eventName === "token") {
+        if (!state.messages.includes(assistantMessage)) {
+          state.messages.push(assistantMessage);
+        }
+        assistantMessage.content += data;
+        setChatStatus(null);
+        renderMessages();
+        return;
+      }
+      if (eventName === "error") {
+        assistantMessage.content = data;
+        if (!state.messages.includes(assistantMessage)) {
+          state.messages.push(assistantMessage);
+        }
+        setChatStatus(null);
+        renderMessages();
+      }
+    }
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line === "") {
+          if (currentEvent !== null) {
+            dispatch(currentEvent, currentDataLines.join("\n"));
+          }
+          currentEvent = null;
+          currentDataLines = [];
+          continue;
+        }
+        if (line.startsWith("event:")) {
+          currentEvent = line.slice("event:".length).trim();
+        } else if (line.startsWith("data:")) {
+          currentDataLines.push(line.slice("data:".length).trim());
+        }
+      }
+    }
+  }
+
+  chatFormEl.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const query = chatInputEl.value.trim();
+    if (!query || state.streaming) {
+      return;
+    }
+    chatInputEl.value = "";
+    state.messages.push({ role: "USER", content: query });
+    renderMessages();
+
+    setStreaming(true);
+    setChatStatus("Aguardando resposta...");
+
+    const assistantMessage = { role: "ASSISTANT", content: "" };
+
+    try {
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: {
+          ...apiHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId: state.currentConversationId,
+          query,
+          bookIds: state.selectedBookIds === null ? null : Array.from(state.selectedBookIds),
+        }),
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        handleInvalidApiKey();
+        return;
+      }
+      if (!response.ok || !response.body) {
+        throw new Error(`falha ao iniciar o chat: ${response.status}`);
+      }
+
+      await consumeChatStream(response.body, assistantMessage);
+    } catch (error) {
+      console.error(error);
+      if (!state.messages.includes(assistantMessage)) {
+        assistantMessage.content = GENERIC_STREAM_ERROR_MESSAGE;
+        state.messages.push(assistantMessage);
+      } else if (assistantMessage.content === "") {
+        assistantMessage.content = GENERIC_STREAM_ERROR_MESSAGE;
+      }
+      renderMessages();
+    } finally {
+      setStreaming(false);
+      setChatStatus(null);
+    }
   });
 
   gateFormEl.addEventListener("submit", (event) => {

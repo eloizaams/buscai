@@ -54,7 +54,7 @@ verificação end-to-end de todos os CAs + `/review
   retrieval), o seletor lista o(s) livro(s); chave inválida no gate mostra o erro e reabre o gate
   (CA7); lista de conversas aparece vazia num device novo.
 
-- [ ] **T5 — Web: chat com streaming, citações e reabertura de conversa**
+- [x] **T5 — Web: chat com streaming, citações e reabertura de conversa**
   `web/app.js`: envio de pergunta monta `ChatRequest` (`conversationId` atual, `query`, `bookIds`
   do seletor ou `null`) e chama `fetch('/chat', {...})`; consome `response.body.getReader()`
   fazendo parsing manual de `event:`/`data:` (`plan.md`, seção "Como roda", passo 6) — nunca

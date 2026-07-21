@@ -174,7 +174,83 @@ body {
 
 .chat {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   padding: 1rem;
+}
+
+.message-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  padding-bottom: 0.5rem;
+}
+
+.message {
+  max-width: 34rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.6rem;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.message-user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+}
+
+.message-assistant {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--fg) 6%, var(--bg));
+  border: 1px solid var(--border);
+}
+
+.chat-status {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.chat-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.chat-form input {
+  flex: 1;
+  padding: 0.6rem;
+  font-size: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.chat-form input:disabled {
+  opacity: 0.6;
+}
+
+.chat-form button {
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.chat-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 @media (max-width: 40rem) {
