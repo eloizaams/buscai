@@ -30,20 +30,6 @@ class IngestCommandTest {
     // --- IngestArgsParser: caminho feliz ---
 
     @Test
-    fun `parse aceita book-id e file obrigatorios, sem reindex e sem title`() {
-        val file = existingPdf()
-
-        val result = IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file"))
-
-        assertTrue(result is IngestArgsResult.Parsed)
-        val args = (result as IngestArgsResult.Parsed).args
-        assertEquals("dom-casmurro", args.bookId)
-        assertEquals(file.toFile(), args.file)
-        assertEquals("dom-casmurro", args.title) // sem --title, usa o próprio book-id
-        assertEquals(false, args.reindex)
-    }
-
-    @Test
     fun `parse aceita --reindex e --title explicitos`() {
         val file = existingPdf()
 
@@ -64,7 +50,8 @@ class IngestCommandTest {
     fun `parse sem --reference-style deixa referenceType nulo (comportamento atual)`() {
         val file = existingPdf()
 
-        val result = IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file"))
+        val result =
+            IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro"))
 
         assertTrue(result is IngestArgsResult.Parsed)
         assertNull((result as IngestArgsResult.Parsed).args.referenceType)
@@ -75,7 +62,9 @@ class IngestCommandTest {
         val file = existingPdf()
 
         val result =
-            IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file", "--reference-style=chapter"))
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro", "--reference-style=chapter"),
+            )
 
         assertTrue(result is IngestArgsResult.Parsed)
         assertEquals(ReferenceType.CHAPTER, (result as IngestArgsResult.Parsed).args.referenceType)
@@ -87,7 +76,12 @@ class IngestCommandTest {
 
         val result =
             IngestArgsParser.parse(
-                arrayOf("--book-id=dom-casmurro", "--file=$file", "--reference-style=numbered-item"),
+                arrayOf(
+                    "--book-id=dom-casmurro",
+                    "--file=$file",
+                    "--title=Dom Casmurro",
+                    "--reference-style=numbered-item",
+                ),
             )
 
         assertTrue(result is IngestArgsResult.Parsed)
@@ -100,7 +94,12 @@ class IngestCommandTest {
 
         val result =
             IngestArgsParser.parse(
-                arrayOf("--book-id=dom-casmurro", "--file=$file", "--reference-style=capitulo"),
+                arrayOf(
+                    "--book-id=dom-casmurro",
+                    "--file=$file",
+                    "--title=Dom Casmurro",
+                    "--reference-style=capitulo",
+                ),
             )
 
         assertTrue(result is IngestArgsResult.Error)
@@ -108,6 +107,19 @@ class IngestCommandTest {
     }
 
     // --- IngestArgsParser: erros de parsing (CA7) ---
+
+    @Test
+    fun `parse rejeita quando --title esta ausente`() {
+        val file = existingPdf()
+
+        val result = IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file"))
+
+        assertTrue(result is IngestArgsResult.Error)
+        assertEquals(
+            "Argumento obrigatório ausente: --title=<titulo da obra>.",
+            (result as IngestArgsResult.Error).message,
+        )
+    }
 
     @Test
     fun `parse rejeita quando --book-id esta ausente`() {

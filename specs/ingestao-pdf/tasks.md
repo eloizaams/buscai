@@ -123,6 +123,10 @@ ao final de cada task (regra já fixada em `.claude/agents/kotlin-implementer.md
   (CA3, CA4, CA6, CA7), incluindo progresso incremental durante o processamento (CA6 — ex.: log a
   cada N páginas/chunks). Teste: cada variante de `IngestionOutcome` produz a mensagem esperada
   (teste unitário de formatação, sem subir o Spring context).
+  > Nota (2026-07-22, `specs/fontes-web-titulo-obra`): `--title` deixou de ser opcional — passou a
+  > ser obrigatório, mesmo padrão de validação já usado para `--book-id`/`--file`. Um título ausente
+  > causou um bug real em produção (citação no chat exibindo o slug bruto do `book-id` em vez do
+  > título da obra); ver `IngestArgsParser` em `IngestCommand.kt`.
 
 - [x] **T11 — Teste de aceite de volume (CA2 — obrigatório, não opcional)**
   Livros com mais de 300 páginas são realidade do acervo, não caso extremo — este teste faz parte

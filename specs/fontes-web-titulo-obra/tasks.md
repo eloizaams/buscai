@@ -34,22 +34,22 @@ Arquivos: `backend/src/main/kotlin/com/buscai/backend/ingestion/cli/IngestComman
 `backend/src/test/kotlin/com/buscai/backend/ingestion/cli/IngestCommandTest.kt`,
 `specs/ingestao-pdf/tasks.md`, `CLAUDE.md` (raiz). Sem gate de `rag-evaluator`.
 
-- [ ] `IngestArgsParser.parse`: `--title` passa a ser obrigatório — mesmo padrão de
+- [x] `IngestArgsParser.parse`: `--title` passa a ser obrigatório — mesmo padrão de
   `--book-id`/`--file` (`IngestCommand.kt:77-85`): ausente/em branco retorna
   `IngestArgsResult.Error("Argumento obrigatório ausente: --title=<titulo da obra>.")`.
-- [ ] Mensagem de "argumento não reconhecido" (`IngestCommand.kt:71-73`): mover `--title=<titulo>`
+- [x] Mensagem de "argumento não reconhecido" (`IngestCommand.kt:71-73`): mover `--title=<titulo>`
   para fora dos colchetes de opcional.
-- [ ] Atualizar o KDoc de `IngestArgsParser` (`:42-47`) e os exemplos de invocação no KDoc de
+- [x] Atualizar o KDoc de `IngestArgsParser` (`:42-47`) e os exemplos de invocação no KDoc de
   `IngestCommand` (`:152-153`) para refletir `--title` obrigatório.
-- [ ] `IngestCommandTest.kt:33-42`: renomear/reescrever o teste "sem title" para esperar
+- [x] `IngestCommandTest.kt:33-42`: renomear/reescrever o teste "sem title" para esperar
   `IngestArgsResult.Error` com a mensagem exata acima.
-- [ ] Novo teste: `--title` ausente é rejeitado (mesmo formato de `IngestCommandTest.kt:113-129`,
+- [x] Novo teste: `--title` ausente é rejeitado (mesmo formato de `IngestCommandTest.kt:113-129`,
   os testes de `--book-id`/`--file` ausentes).
-- [ ] Atualizar exemplo de `scripts/dev-ingest.sh` no `CLAUDE.md` (raiz) para incluir `--title=`.
-- [ ] Nota datada em `specs/ingestao-pdf/tasks.md:122` apontando que `--title` deixou de ser
+- [x] Atualizar exemplo de `scripts/dev-ingest.sh` no `CLAUDE.md` (raiz) para incluir `--title=`.
+- [x] Nota datada em `specs/ingestao-pdf/tasks.md:122` apontando que `--title` deixou de ser
   opcional nesta spec (mesmo padrão das notas datadas já usadas nos ADRs 0008/0013).
-- [ ] `./gradlew ktlintFormat test` verde dentro de `backend/`.
-- [ ] **Ação manual pós-merge (não é código, não vira commit desta task):** operador roda
+- [x] `./gradlew ktlintFormat test` verde dentro de `backend/`.
+- [x] **Ação manual pós-merge (não é código, não vira commit desta task):** operador roda
   `UPDATE book SET title = 'O Livro dos Espíritos' WHERE id = 'o-livro-dos-espiritos';` no Neon de
   produção. Documentar esse passo pendente na entrega da task, não executá-lo como parte do
   commit (é operação em dado de produção, fora do escopo de código versionado).
