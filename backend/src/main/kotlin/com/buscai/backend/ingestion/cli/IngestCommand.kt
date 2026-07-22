@@ -162,7 +162,8 @@ object IngestionOutcomeFormatter {
     ): String =
         when (outcome) {
             is IngestionOutcome.Skipped ->
-                "Livro '${outcome.bookId}' já ingerido (versão ${outcome.existingVersionId}) — nada a fazer."
+                "Livro '${outcome.bookId}' já ingerido (versão ${outcome.existingVersionId}) — nada a fazer. " +
+                    "Use --reindex para reprocessar (ex.: para aplicar outro --content-pages)."
 
             is IngestionOutcome.ReindexRequired ->
                 "Livro '${outcome.bookId}' já tem uma versão diferente ingerida (versão " +

@@ -248,6 +248,10 @@ class IngestCommandTest {
         assertTrue(message.contains("dom-casmurro"))
         assertTrue(message.contains(versionId.toString()))
         assertTrue(message.contains("já ingerido"))
+        // T2 (specs/conteudo-paginas-overlap/plan.md, CA4): orienta --reindex, inclusive para
+        // aplicar um --content-pages diferente ao mesmo arquivo já ingerido.
+        assertTrue(message.contains("--reindex"))
+        assertTrue(message.contains("--content-pages"))
     }
 
     @Test

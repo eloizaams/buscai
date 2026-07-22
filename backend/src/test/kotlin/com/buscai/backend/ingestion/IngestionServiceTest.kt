@@ -332,6 +332,73 @@ class IngestionServiceTest {
     }
 
     /**
+     * T2 (`specs/conteudo-paginas-overlap/plan.md`): `contentPages` restringe a extração ao
+     * intervalo informado — os chunks persistidos só vêm de páginas dentro dele, front/back matter
+     * (aqui, páginas 1-2 e 8-9 do fixture de 9 páginas) nunca é extraído/chunkado. `pageCount`
+     * reportado no outcome continua sendo o total do documento — `--content-pages` não altera isso,
+     * só delimita o que vira chunk.
+     */
+    @Test
+    fun `content-pages restringe a extracao ao intervalo, chunks so vem das paginas do intervalo`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-content-pages-t2",
+                title = "Livro Content Pages T2",
+                file = file,
+                contentPages = 3..7,
+            )
+
+        val completed = outcome as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed, obteve: $outcome")
+        checkNotNull(completed)
+        assertEquals(PAGE_COUNT, completed.pageCount)
+
+        val chunks = chunkRepository.findAll().filter { it.bookVersionId == completed.versionId }
+        assertTrue(chunks.isNotEmpty(), "esperava pelo menos 1 chunk")
+        chunks.forEach { chunk ->
+            assertTrue(chunk.page in 3..7, "chunk fora do intervalo --content-pages: page=${chunk.page}")
+        }
+    }
+
+    /**
+     * T2 (`specs/conteudo-paginas-overlap/plan.md`): `contentPages.last` maior que o total de
+     * páginas do documento falha a ingestão com uma razão descritiva, ANTES de criar a
+     * `BookVersion` — não deixa o `require` de `PdfTextExtractor.extractRange` estourar uma
+     * exceção crua no meio do pipeline.
+     */
+    @Test
+    fun `content-pages com fim maior que o total de paginas falha a ingestao com mensagem descritiva, sem BookVersion orfa`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-content-pages-excede-t2",
+                title = "Livro Content Pages Excede T2",
+                file = file,
+                contentPages = 3..(PAGE_COUNT + 5),
+            )
+
+        val failed = outcome as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $outcome")
+        checkNotNull(failed)
+        assertTrue(
+            failed.reason.contains("content-pages"),
+            "mensagem deveria mencionar --content-pages: ${failed.reason}",
+        )
+        assertTrue(
+            failed.reason.contains(PAGE_COUNT.toString()),
+            "mensagem deveria mencionar o total de páginas do documento: ${failed.reason}",
+        )
+        assertEquals(null, failed.versionId, "falha antes de startVersion — não deveria existir BookVersion")
+        assertTrue(
+            fakeEmbeddingClient.calls.isEmpty(),
+            "não deveria chamar o EmbeddingClient quando --content-pages excede o total de páginas",
+        )
+    }
+
+    /**
      * ADR-0013 (`specs/referencia-estruturada/tasks.md`, T2): ingerir com `referenceType =
      * NUMBERED_ITEM` persiste `Chunk.reference`/`referenceType` corretos e confirma que o
      * `ChunkValidator` não rejeita um chunk abaixo de `MIN_CHUNK_TOKENS` quando um item numerado

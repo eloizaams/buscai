@@ -127,8 +127,6 @@ class IngestionService(
         file: File,
         reindex: Boolean = false,
         referenceType: ReferenceType? = null,
-        // TODO(T2, specs/conteudo-paginas-overlap): ainda não usado — restringir extração ao
-        // intervalo e validar contra pageCount fica na próxima task.
         contentPages: IntRange? = null,
     ): IngestionOutcome {
         var versionId: UUID? = null
@@ -158,9 +156,24 @@ class IngestionService(
             // genérico abaixo, que devolve IngestionOutcome.Failed com versionId nulo (CA7).
             val pageCount = pdfTextExtractor.pageCount(file)
 
+            // Validação de --content-pages contra o documento real (T2,
+            // specs/conteudo-paginas-overlap/plan.md): o parser (IngestArgsParser) só valida
+            // formato, nunca abre o PDF — é aqui, com pageCount em mãos, que um intervalo além do
+            // fim do documento é barrado. Feito ANTES de startVersion (sem BookVersion órfã) e
+            // ANTES de extractCleanAndChunk, para não deixar o `require` de
+            // PdfTextExtractor.extractRange estourar uma exceção crua no meio do pipeline.
+            if (contentPages != null && contentPages.last > pageCount) {
+                return fail(
+                    bookId,
+                    null,
+                    "Intervalo --content-pages (${contentPages.first}-${contentPages.last}) excede o " +
+                        "total de páginas do documento ($pageCount).",
+                )
+            }
+
             versionId = startVersion(bookId, title, fileHash, pageCount, referenceType)
 
-            val drafts = extractCleanAndChunk(file, pageCount, referenceType)
+            val drafts = extractCleanAndChunk(file, pageCount, referenceType, contentPages)
 
             when (val validation = chunkValidator.validate(drafts, referenceType)) {
                 is ChunkValidationResult.Invalid ->
@@ -267,30 +280,48 @@ class IngestionService(
      * avaliado ao final. Um PDF sinalizado como escaneado lança [ScannedPdfException] em vez de
      * silenciosamente produzir uma lista de chunks vazia — que [ChunkValidator] aprovaria de forma
      * vácua (nenhum chunk para violar nada) e deixaria a `BookVersion` `READY` com zero chunks.
+     *
+     * [contentPages] (T2, `specs/conteudo-paginas-overlap/plan.md`), quando fornecido, restringe o
+     * próprio laço de lotes ao intervalo — em vez de extrair o PDF inteiro e descartar páginas
+     * depois — para não gastar tempo extraindo/limpando front/back matter (índice remissivo,
+     * capa) que nunca viraria chunk. Consequência deliberada: a checagem de PDF escaneado acima
+     * (limiar de 90% de páginas sem texto, ADR-0008) passa a ser medida só sobre as páginas do
+     * intervalo quando `--content-pages` é usado — mais fiel (capas/imagens de front matter
+     * deixam de contar), não é um bug. [pageCount] permanece o já validado contra
+     * [contentPages] em [ingest] (`contentPages.last <= pageCount`); o `minOf` abaixo é só
+     * defesa redundante.
      */
     private fun extractCleanAndChunk(
         file: File,
         pageCount: Int,
         referenceType: ReferenceType?,
+        contentPages: IntRange? = null,
     ): List<ChunkDraft> {
         if (pageCount == 0) return emptyList()
 
+        val lastPage = contentPages?.let { minOf(pageCount, it.last) } ?: pageCount
+        var start = contentPages?.first ?: 1
+        if (contentPages != null) {
+            logger.info("Restringindo ingestão às páginas {}-{} de {} totais.", start, lastPage, pageCount)
+        }
+
         val cleanedPages = LinkedHashMap<Int, String>()
         var pagesWithoutText = 0
-        var start = 1
-        while (start <= pageCount) {
-            val end = minOf(start + PAGE_EXTRACTION_BATCH_SIZE - 1, pageCount)
+        var pagesConsidered = 0
+        while (start <= lastPage) {
+            val end = minOf(start + PAGE_EXTRACTION_BATCH_SIZE - 1, lastPage)
             val rawPages = pdfTextExtractor.extractRange(file, start, end)
             rawPages.values.forEach { pageText ->
                 if (scannedPdfDetector.isPageWithoutText(pageText)) pagesWithoutText++
             }
+            pagesConsidered += rawPages.size
             cleanedPages += textCleaner.clean(rawPages)
             start = end + 1
         }
 
-        if (scannedPdfDetector.isScanned(pagesWithoutText, pageCount)) {
+        if (scannedPdfDetector.isScanned(pagesWithoutText, pagesConsidered)) {
             throw ScannedPdfException(
-                "PDF parece não ter camada de texto extraível ($pagesWithoutText de $pageCount " +
+                "PDF parece não ter camada de texto extraível ($pagesWithoutText de $pagesConsidered " +
                     "páginas sem texto útil) — provável PDF escaneado sem OCR",
             )
         }
