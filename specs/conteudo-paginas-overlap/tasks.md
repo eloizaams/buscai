@@ -62,11 +62,11 @@ verde (e depois a suíte toda em T4). **Responsável:** kotlin-implementer.
 
 ## T4 — Notas de ADR + suíte completa
 
-- [ ] ADR-0002: nota datada 2026-07-22 (overlap condicional ao `referenceType`; delimitação de
+- [x] ADR-0002: nota datada 2026-07-22 (overlap condicional ao `referenceType`; delimitação de
       conteúdo por `--content-pages`) — texto-base na seção "Notas de ADR" do `plan.md`.
-- [ ] ADR-0008: complemento à nota de 2026-07-22 (`--content-pages` fora da chave de gatilho;
+- [x] ADR-0008: complemento à nota de 2026-07-22 (`--content-pages` fora da chave de gatilho;
       intervalo novo exige `--reindex`).
-- [ ] `./gradlew ktlintFormat build` verde (build = compile + lint + testes), sem regressão.
+- [x] `./gradlew ktlintFormat build` verde (build = compile + lint + testes), sem regressão.
 
 **Pronto quando:** build verde + notas revisáveis no diff. **Responsável:** kotlin-implementer.
 
