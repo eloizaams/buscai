@@ -215,6 +215,31 @@ class ChunkerTest {
         assertEquals(null, chunks[0].reference)
     }
 
+    @Test
+    fun `chunk never splits a paragraph at a line that looks like a numbered-item opening when referenceType is not NUMBERED_ITEM`() {
+        // Risco de falso-positivo já documentado (CA5 da spec): uma linha "1. algo" no MEIO de um
+        // parágrafo de prosa comum (não a primeira linha dele, para o teste realmente exercitar o
+        // guard — a primeira linha de um segmento já delimitado por linha em branco nunca gera uma
+        // quebra nova, guard ou não) não é necessariamente um item numerado de verdade. A nova
+        // fronteira extra de parágrafo (introduzida nesta task) só pode se aplicar quando
+        // referenceType == NUMBERED_ITEM (CA3) — para null/CHAPTER, o guard early-return de
+        // splitBlankLineSegment precisa manter esse parágrafo inteiro unificado, sem quebrar na
+        // linha "1. item...".
+        val secondParagraph = "Introdução da lista.\n1. item dentro de uma lista em prosa\ncontinuação"
+        val pageText = "Capítulo I\n\n$secondParagraph"
+        val pageTexts = mapOf(1 to pageText)
+
+        val nullChunks = chunker.chunk(pageTexts)
+        assertEquals(1, nullChunks.size)
+        assertEquals(pageText, nullChunks[0].text)
+        assertEquals(null, nullChunks[0].reference)
+
+        val chapterChunks = chunker.chunk(pageTexts, ReferenceType.CHAPTER)
+        assertEquals(1, chapterChunks.size)
+        assertEquals(pageText, chapterChunks[0].text)
+        assertEquals("Capítulo I", chapterChunks[0].reference)
+    }
+
     /** "1. w1 w2 ... wN" — abertura de item numerado (ADR-0013) seguida de conteúdo previsível. */
     private fun item(
         number: Int,
@@ -293,6 +318,68 @@ class ChunkerTest {
         val chunkWithItem156 = chunks.single { item156 in it.text }
         assertTrue(item157Main !in chunkWithItem156.text) {
             "item 156 e a abertura do item 157 não podem compartilhar o mesmo chunk aqui (estouraria o teto)"
+        }
+    }
+
+    @Test
+    fun `chunk with NUMBERED_ITEM splits consecutive items with no blank line between them, each with its own reference and charOffset`() {
+        // Reprodução do bug real (baseline com "O Livro dos Espíritos"): o PDF não tem linha em
+        // branco entre um item numerado e o próximo — hoje eles se fundiriam num único parágrafo
+        // de prosa e o ReferenceAnnotator nunca encontraria a abertura de cada item individualmente.
+        // Itens dimensionados (>347 tokens cada) para que nenhum par caiba junto em
+        // MAX_OWN_CONTENT_TOKENS (695) — assim cada item também vira seu próprio chunk, o que deixa
+        // charOffset de cada um (não só do primeiro) observável diretamente no ChunkDraft.
+        val item1 = item(1, 1..692) // 693 tokens
+        val item2 = item(2, 693..1384) // 692 tokens
+        val item3 = item(3, 1385..2076) // 692 tokens
+        val pageText = "$item1\n$item2\n$item3" // só \n simples, igual ao PDF real — sem linha em branco
+        val pageTexts = mapOf(1 to pageText)
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(3, chunks.size)
+
+        assertEquals(item1, chunks[0].text) // primeiro chunk, sem overlap herdado
+        assertEquals("1", chunks[0].reference)
+        assertEquals(0, chunks[0].charOffset)
+
+        assertTrue(chunks[1].text.endsWith(item2)) { "item 2 precisa estar íntegro no fim do chunk 1" }
+        assertEquals("2", chunks[1].reference)
+        assertEquals(pageText.indexOf(item2), chunks[1].charOffset)
+
+        assertTrue(chunks[2].text.endsWith(item3)) { "item 3 precisa estar íntegro no fim do chunk 2" }
+        assertEquals("3", chunks[2].reference)
+        assertEquals(pageText.indexOf(item3), chunks[2].charOffset)
+
+        val validationResult = ChunkValidator().validate(chunks, ReferenceType.NUMBERED_ITEM)
+        assertEquals(ChunkValidationResult.Valid, validationResult) {
+            "itens deste tamanho não deveriam violar o ChunkValidator: $validationResult"
+        }
+    }
+
+    @Test
+    fun `chunk with NUMBERED_ITEM never triggers an overlap-ratio violation with a very short item alone between two long ones`() {
+        // Achado do plan.md ("ChunkValidator nunca foi exercitado por itens atômicos curtos"):
+        // measureOverlapRatio divide pelo tokenCount TOTAL do chunk anterior (que já inclui o
+        // overlap herdado por ELE), não pelo conteúdo próprio — para um grupo de item único muito
+        // curto (ex.: uma resposta de uma palavra, comum neste livro em formato pergunta-resposta),
+        // isso pode fazer o overlap medido cair bem abaixo de OVERLAP_MIN_RATIO. Itens
+        // grandes/pequenos alternados, sem linha em branco entre eles, reproduzem o caso exato.
+        val item1 = item(1, 1..692) // 693 tokens — grande, isolado no próprio grupo
+        val item2 = item(2, 693..696) // 5 tokens — curto, isolado no próprio grupo
+        val item3 = item(3, 697..1388) // 693 tokens — grande de novo
+        val item4 = item(4, 1389..1392) // 5 tokens — curto de novo
+        val pageText = "$item1\n$item2\n$item3\n$item4"
+        val pageTexts = mapOf(1 to pageText)
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(4, chunks.size)
+        assertEquals(listOf("1", "2", "3", "4"), chunks.map { it.reference })
+
+        val validationResult = ChunkValidator().validate(chunks, ReferenceType.NUMBERED_ITEM)
+        assertEquals(ChunkValidationResult.Valid, validationResult) {
+            "checagem de overlap precisa ser pulada para NUMBERED_ITEM (ADR-0013/ADR-0008): $validationResult"
         }
     }
 }
