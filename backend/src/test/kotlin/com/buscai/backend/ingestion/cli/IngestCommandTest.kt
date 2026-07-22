@@ -106,6 +106,84 @@ class IngestCommandTest {
         assertTrue((result as IngestArgsResult.Error).message.contains("reference-style"))
     }
 
+    // --- IngestArgsParser: --content-pages (specs/conteudo-paginas-overlap, CA1) ---
+
+    @Test
+    fun `parse aceita --content-pages no formato inicio-fim`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=os-espiritos", "--file=$file", "--title=O Livro dos Espíritos", "--content-pages=15-280"),
+            )
+
+        assertTrue(result is IngestArgsResult.Parsed)
+        assertEquals(15..280, (result as IngestArgsResult.Parsed).args.contentPages)
+    }
+
+    @Test
+    fun `parse sem --content-pages deixa contentPages nulo (comportamento atual)`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro"))
+
+        assertTrue(result is IngestArgsResult.Parsed)
+        assertNull((result as IngestArgsResult.Parsed).args.contentPages)
+    }
+
+    @Test
+    fun `parse rejeita --content-pages sem hifen`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro", "--content-pages=15"),
+            )
+
+        assertTrue(result is IngestArgsResult.Error)
+        assertTrue((result as IngestArgsResult.Error).message.contains("content-pages"))
+    }
+
+    @Test
+    fun `parse rejeita --content-pages nao numerico`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro", "--content-pages=a-b"),
+            )
+
+        assertTrue(result is IngestArgsResult.Error)
+        assertTrue((result as IngestArgsResult.Error).message.contains("content-pages"))
+    }
+
+    @Test
+    fun `parse rejeita --content-pages com fim menor que inicio`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro", "--content-pages=280-15"),
+            )
+
+        assertTrue(result is IngestArgsResult.Error)
+        assertTrue((result as IngestArgsResult.Error).message.contains("Intervalo inválido"))
+    }
+
+    @Test
+    fun `parse rejeita --content-pages com inicio menor que 1`() {
+        val file = existingPdf()
+
+        val result =
+            IngestArgsParser.parse(
+                arrayOf("--book-id=dom-casmurro", "--file=$file", "--title=Dom Casmurro", "--content-pages=0-10"),
+            )
+
+        assertTrue(result is IngestArgsResult.Error)
+        assertTrue((result as IngestArgsResult.Error).message.contains("Intervalo inválido"))
+    }
+
     // --- IngestArgsParser: erros de parsing (CA7) ---
 
     @Test

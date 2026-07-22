@@ -7,15 +7,15 @@ Comandos Gradle sempre **dentro de `backend/`**. Um commit por task (`/commit`);
 
 Em `backend/src/main/kotlin/com/buscai/backend/ingestion/cli/IngestCommand.kt`:
 
-- [ ] Campo novo `contentPages: IntRange? = null` em `IngestArgs`.
-- [ ] `IngestArgsParser`: chave `content-pages`, validação de formato via regex `^(\d+)-(\d+)$`
+- [x] Campo novo `contentPages: IntRange? = null` em `IngestArgs`.
+- [x] `IngestArgsParser`: chave `content-pages`, validação de formato via regex `^(\d+)-(\d+)$`
       e de intervalo (`início >= 1`, `fim >= início`) — erros via `IngestArgsResult.Error`
       seguindo o padrão de mensagem existente ("Valor inválido para --content-pages: ...").
       **Nunca** exceção; o parser não abre o PDF (limite vs. total de páginas é T2).
-- [ ] Atualizar mensagem de usage ("Argumento não reconhecido") e KDoc do parser com
+- [x] Atualizar mensagem de usage ("Argumento não reconhecido") e KDoc do parser com
       `[--content-pages=<início>-<fim>]`.
-- [ ] `IngestCommand.run` repassa `contentPages` para `IngestionService.ingest`.
-- [ ] Testes em `IngestCommandTest` (padrão dos testes de `--reference-style`):
+- [x] `IngestCommand.run` repassa `contentPages` para `IngestionService.ingest`.
+- [x] Testes em `IngestCommandTest` (padrão dos testes de `--reference-style`):
       válido `15-280` → `15..280`; ausente → `null`; inválidos `15`, `a-b`, `280-15`, `0-10`
       → `Error` com mensagem exata.
 

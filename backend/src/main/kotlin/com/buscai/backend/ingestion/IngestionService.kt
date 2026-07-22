@@ -127,6 +127,9 @@ class IngestionService(
         file: File,
         reindex: Boolean = false,
         referenceType: ReferenceType? = null,
+        // TODO(T2, specs/conteudo-paginas-overlap): ainda não usado — restringir extração ao
+        // intervalo e validar contra pageCount fica na próxima task.
+        contentPages: IntRange? = null,
     ): IngestionOutcome {
         var versionId: UUID? = null
         return try {

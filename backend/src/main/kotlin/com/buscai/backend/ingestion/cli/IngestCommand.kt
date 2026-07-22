@@ -17,6 +17,7 @@ data class IngestArgs(
     val title: String,
     val reindex: Boolean,
     val referenceType: ReferenceType? = null,
+    val contentPages: IntRange? = null,
 )
 
 /**
@@ -41,18 +42,25 @@ sealed class IngestArgsResult {
  * `--book-id=<slug>`, `--file=<caminho-do-pdf>` e `--title=<titulo da obra>` (obrigatórios —
  * `specs/fontes-web-titulo-obra`, 2026-07-22: um título ausente fazia a citação no chat exibir o
  * slug bruto do `book-id` em vez do título real da obra), `--reindex` (flag booleana: presença =
- * `true`, ADR-0008) e `--reference-style=chapter|numbered-item` (opcional, ADR-0013; ausente =
- * nenhuma detecção de referência, `IngestArgs.referenceType` nulo — comportamento atual). Um valor
- * fora desse conjunto é erro de parsing, nunca chega a [IngestionService.ingest].
+ * `true`, ADR-0008), `--reference-style=chapter|numbered-item` (opcional, ADR-0013; ausente =
+ * nenhuma detecção de referência, `IngestArgs.referenceType` nulo — comportamento atual) e
+ * `--content-pages=<início>-<fim>` (opcional, `specs/conteudo-paginas-overlap`, 2026-07-22:
+ * intervalo 1-indexed e inclusivo de páginas de conteúdo do documento, ex. `15-280`; ausente =
+ * `IngestArgs.contentPages` nulo — ingere todas as páginas, comportamento atual). Aqui só se
+ * valida o **formato** de `--content-pages`; o parser não abre o PDF, então o limite contra o
+ * total de páginas do documento é responsabilidade de [IngestionService.ingest]. Um valor fora
+ * desse conjunto é erro de parsing, nunca chega a [IngestionService.ingest].
  */
 object IngestArgsParser {
     private const val BOOK_ID_KEY = "book-id"
     private const val FILE_KEY = "file"
     private const val TITLE_KEY = "title"
     private const val REFERENCE_STYLE_KEY = "reference-style"
+    private const val CONTENT_PAGES_KEY = "content-pages"
     private const val REINDEX_FLAG = "--reindex"
     private const val REFERENCE_STYLE_CHAPTER = "chapter"
     private const val REFERENCE_STYLE_NUMBERED_ITEM = "numbered-item"
+    private val CONTENT_PAGES_PATTERN = Regex("""^(\d+)-(\d+)$""")
 
     fun parse(args: Array<out String>): IngestArgsResult {
         val options = mutableMapOf<String, String>()
@@ -68,7 +76,8 @@ object IngestArgsParser {
                 else ->
                     return IngestArgsResult.Error(
                         "Argumento não reconhecido: '$arg'. Use --book-id=<slug> --file=<caminho-do-pdf> " +
-                            "--title=<titulo> [--reindex] [--reference-style=chapter|numbered-item].",
+                            "--title=<titulo> [--reindex] [--reference-style=chapter|numbered-item] " +
+                            "[--content-pages=<início>-<fim>].",
                     )
             }
         }
@@ -106,8 +115,37 @@ object IngestArgsParser {
                     )
             }
 
+        val contentPagesRaw = options[CONTENT_PAGES_KEY]
+        val contentPages: IntRange? =
+            when {
+                contentPagesRaw == null -> null
+                else -> {
+                    val match =
+                        CONTENT_PAGES_PATTERN.matchEntire(contentPagesRaw)
+                            ?: return IngestArgsResult.Error(
+                                "Valor inválido para --content-pages: '$contentPagesRaw'. " +
+                                    "Use '<início>-<fim>' (ex.: 15-280).",
+                            )
+                    val (start, end) = match.destructured.toList().map { it.toInt() }
+                    if (start < 1 || end < start) {
+                        return IngestArgsResult.Error(
+                            "Intervalo inválido para --content-pages: '$contentPagesRaw'. " +
+                                "Use início >= 1 e fim >= início.",
+                        )
+                    }
+                    start..end
+                }
+            }
+
         return IngestArgsResult.Parsed(
-            IngestArgs(bookId = bookId, file = file, title = title, reindex = reindex, referenceType = referenceType),
+            IngestArgs(
+                bookId = bookId,
+                file = file,
+                title = title,
+                reindex = reindex,
+                referenceType = referenceType,
+                contentPages = contentPages,
+            ),
         )
     }
 }
@@ -181,6 +219,7 @@ class IngestCommand(
                         file = parsed.file,
                         reindex = parsed.reindex,
                         referenceType = parsed.referenceType,
+                        contentPages = parsed.contentPages,
                     )
                 val elapsed = Duration.between(start, Instant.now())
                 println(IngestionOutcomeFormatter.format(outcome, elapsed))
