@@ -36,6 +36,21 @@ os comandos Gradle dentro do diretório correto, nunca da raiz do repo.
   Neon (Postgres) + Render/Fly (API), ambos free tier — logo com cold start ocasional (ADR-0006),
   e histórico de conversa persistido no backend, não no app (ADR-0007).
 
+## Ambiente de desenvolvimento local
+
+Roteiro repetitivo de subir o backend/ingerir um livro localmente (Postgres com pgvector,
+Voyage/Anthropic reais) encapsulado em `scripts/` — ambos leem segredos de um `.env` na raiz do
+repo (gitignored) se existir, ou já exportados no shell; nenhum segredo fica no script:
+
+- `scripts/dev-run.sh` — sobe o backend (`./gradlew bootRun` dentro de `backend/`), que já serve
+  `web/` estático same-origin (`copyWebStatic` em `backend/build.gradle.kts`) em
+  `http://localhost:8080`.
+- `scripts/dev-ingest.sh "<args do IngestCommand>"` — roda a CLI de ingestão (profile `ingest`),
+  ex.: `scripts/dev-ingest.sh "--book-id=dom-casmurro --file=/caminho/livro.pdf"`.
+
+Variáveis obrigatórias: `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`,
+`VOYAGE_API_KEY` (ambos scripts) + `ANTHROPIC_API_KEY`, `BUSCAI_API_KEY` (só `dev-run.sh`).
+
 ## Git flow
 
 - `main` é a branch estável. Depois da Fase 1, **nada entra direto na main**: todo trabalho nasce
