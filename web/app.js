@@ -238,6 +238,57 @@
     }
   }
 
+  // Rótulo de referência por fonte (ADR-0013 §5, constitution §4 — nunca expor página):
+  // `CHAPTER` já vem com o texto do cabeçalho completo (ex. "Capítulo XII", extraído verbatim do
+  // livro), então é exibido como está; `NUMBERED_ITEM` guarda só o número do item, então precisa do
+  // prefixo "Pergunta"; `referenceType` nulo (livro ingerido sem `--reference-style`) não tem rótulo.
+  function referenceLabel(source) {
+    if (source.referenceType === "CHAPTER") {
+      return source.reference;
+    }
+    if (source.referenceType === "NUMBERED_ITEM") {
+      return "Pergunta " + source.reference;
+    }
+    return null;
+  }
+
+  // Monta a lista de fontes de uma mensagem do assistente como `<details>` nativo — nasce
+  // recolhida/expandida conforme `message.sourcesExpanded` (estado vive na mensagem, não no DOM,
+  // porque `renderMessages` reconstrói tudo a cada `token` recebido). Todo texto vindo do backend
+  // (título, referência, trecho) é atribuído via `textContent`, nunca `innerHTML` — pode conter
+  // `<`/`>`/`&` do texto original do livro.
+  function buildSourcesDetails(message) {
+    const details = document.createElement("details");
+    details.className = "sources";
+    details.open = message.sourcesExpanded;
+    details.addEventListener("toggle", () => {
+      message.sourcesExpanded = details.open;
+    });
+
+    const summary = document.createElement("summary");
+    summary.textContent = message.sources.length + " fontes";
+    details.appendChild(summary);
+
+    const list = document.createElement("ul");
+    list.className = "sources-list";
+    for (const source of message.sources) {
+      const item = document.createElement("li");
+
+      const heading = document.createElement("strong");
+      const label = referenceLabel(source);
+      heading.textContent = label ? source.bookTitle + " — " + label : source.bookTitle;
+      item.appendChild(heading);
+
+      const excerpt = document.createElement("p");
+      excerpt.textContent = source.text;
+      item.appendChild(excerpt);
+
+      list.appendChild(item);
+    }
+    details.appendChild(list);
+    return details;
+  }
+
   function renderMessages() {
     messageListEl.innerHTML = "";
     for (const message of state.messages) {
@@ -248,6 +299,10 @@
       bubble.className = "message message-" + message.role.toLowerCase();
       bubble.textContent = message.content;
       messageListEl.appendChild(bubble);
+
+      if (message.role === "ASSISTANT" && Array.isArray(message.sources) && message.sources.length > 0) {
+        bubble.appendChild(buildSourcesDetails(message));
+      }
     }
     messageListEl.scrollTop = messageListEl.scrollHeight;
   }
@@ -281,6 +336,17 @@
         if (isNewConversation) {
           loadConversationsOnly();
         }
+        return;
+      }
+      if (eventName === "sources") {
+        // Emitido uma única vez, sempre antes do primeiro "token" (ChatEvent.kt) — chega com a
+        // mensagem do assistente ainda vazia, então ela pode ainda não estar em state.messages.
+        const parsed = JSON.parse(data);
+        assistantMessage.sources = parsed.sources;
+        if (!state.messages.includes(assistantMessage)) {
+          state.messages.push(assistantMessage);
+        }
+        renderMessages();
         return;
       }
       if (eventName === "token") {
@@ -351,7 +417,7 @@
     setStreaming(true);
     setChatStatus("Aguardando resposta...");
 
-    const assistantMessage = { role: "ASSISTANT", content: "" };
+    const assistantMessage = { role: "ASSISTANT", content: "", sources: [], sourcesExpanded: false };
 
     try {
       const response = await fetch("/chat", {

@@ -7,23 +7,26 @@ ordem, cada uma é uma chamada nova de `kotlin-implementer`.
 
 Arquivo: `web/app.js`. Sem gate de `rag-evaluator` (não toca retrieval/generation).
 
-- [ ] Adicionar `sources: []` e `sourcesExpanded: false` ao objeto de mensagem do assistente
+- [x] Adicionar `sources: []` e `sourcesExpanded: false` ao objeto de mensagem do assistente
   (`assistantMessage`, criado em `web/app.js:354`).
-- [ ] Novo ramo `sources` em `dispatch` (`web/app.js:277-305`): `JSON.parse(data)`, grava em
+- [x] Novo ramo `sources` em `dispatch` (`web/app.js:277-305`): `JSON.parse(data)`, grava em
   `assistantMessage.sources`, garante a mensagem em `state.messages`, chama `renderMessages()`.
-- [ ] Em `renderMessages` (`web/app.js:241-253`), para mensagem `ASSISTANT` com
+- [x] Em `renderMessages` (`web/app.js:241-253`), para mensagem `ASSISTANT` com
   `sources.length > 0`: montar `<details>` com `<summary>` ("N fontes") + `<ul>`/`<li>` (um item
   por fonte: título do livro + rótulo de referência + trecho), tudo via `textContent`/
   `createElement` (nunca `innerHTML` — texto de livro pode conter `<`/`>`/`&`).
-- [ ] `details.open = message.sourcesExpanded` na montagem; listener `toggle` grava o novo estado
+- [x] `details.open = message.sourcesExpanded` na montagem; listener `toggle` grava o novo estado
   de volta em `message.sourcesExpanded` (sobrevive ao rebuild completo que `renderMessages` faz a
   cada `token`).
-- [ ] Rótulo de referência: `CHAPTER` → "Capítulo N", `NUMBERED_ITEM` → "Pergunta N",
+- [x] Rótulo de referência: `CHAPTER` → "Capítulo N", `NUMBERED_ITEM` → "Pergunta N",
   `referenceType` nulo → sem rótulo, só o título do livro (nunca expor página, constitution §4).
 - [ ] Verificação manual (sem harness de teste em `web/`): `scripts/dev-run.sh` local + pergunta
   real — checar CA1 (lista recolhida aparece), CA2 (expandir/recolher sobrevive ao streaming),
   CA3 (pergunta sem contexto não mostra lista), CA4 (reabrir conversa antiga não quebra e não
-  mostra lista).
+  mostra lista). **Não executada nesta sessão**: sandbox sem `DATABASE_URL`/`VOYAGE_API_KEY`/
+  `ANTHROPIC_API_KEY`/`BUSCAI_API_KEY` exportados nem acesso permitido a um `.env` na raiz do
+  repo (hook de segredos bloqueia leitura/checagem de `.env`) — fica pendente para quem tiver
+  esse ambiente disponível.
 
 ## T2 — Título obrigatório na ingestão + correção do dado em produção (R2)
 
