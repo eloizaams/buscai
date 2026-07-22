@@ -11,6 +11,22 @@ Aceito — 2026-07-21
 > semântica idênticos ao decidido aqui — só o nome do campo muda; `plan.md` já refletia
 > `referenceType` desde a primeira versão.
 
+> **Nota (2026-07-22, `specs/limite-item-numerado/`):** a detecção de abertura de item numerado
+> (regex citada na seção 1, "regex de início de item") descrita como implementação de
+> `ReferenceAnnotator` tinha, na prática, um uso duplo não documentado aqui: o `Chunker` também
+> precisa reconhecer a mesma abertura como fronteira de parágrafo (sem isso, itens numerados
+> consecutivos sem linha em branco entre eles — o padrão real do livro ingerido — ficavam fundidos
+> num único parágrafo/chunk, e o `ReferenceAnnotator` nunca encontrava a abertura para estampar
+> `reference`; bug corrigido em `specs/limite-item-numerado/`). `NUMBERED_ITEM_OPENING_REGEX` passa a
+> ser a fonte única do padrão, `internal` em `ReferenceAnnotator.kt`, reaproveitada por
+> `Chunker.splitIntoParagraphs` — nunca duas cópias/variações da mesma regex.
+>
+> Decisão deliberada, também registrada em `specs/limite-item-numerado/spec.md` ("Fora de escopo"):
+> **não validar continuidade/monotonicidade da numeração detectada** (ex.: alertar se o item 158 não
+> for seguido por 159). YAGNI/frágil — a numeração pode legitimamente reiniciar por parte/capítulo
+> em outros livros do acervo, e essa validação viraria fonte nova de falso-negativo em vez de
+> proteção real.
+
 ## Contexto
 Um teste real ingerindo "O Livro dos Espíritos" (Allan Kardec) expôs duas limitações do modelo de
 citação atual, que hoje cita fonte só por número de página (`Chunk.page`, ADR-0002):

@@ -26,10 +26,18 @@ sealed class ChunkValidationResult {
  * chunk fora do padrão.
  *
  * [ChunkValidator.validate] recebe o `referenceType` declarado na ingestão (ADR-0013, amenda ao
- * ADR-0008): quando é [ReferenceType.NUMBERED_ITEM], a checagem de [MIN_CHUNK_TOKENS] é pulada —
- * item numerado é a unidade atômica de chunk ([Chunker.groupUnits]), então um chunk pode
- * legitimamente ficar abaixo do piso. O teto [MAX_CHUNK_TOKENS] e o overlap continuam validados
- * sempre, para todo `referenceType` (inclusive `null`).
+ * ADR-0008): quando é [ReferenceType.NUMBERED_ITEM], a checagem de [MIN_CHUNK_TOKENS] **e** a
+ * checagem de overlap são puladas — item numerado é a unidade atômica de chunk
+ * ([Chunker.groupUnits]), então um chunk pode legitimamente ficar abaixo do piso, e o overlap entre
+ * dois itens vizinhos deixa de fazer sentido pela mesma razão (a fronteira entre eles é sempre uma
+ * fronteira de item deliberada, não um corte arbitrário de parágrafo que o overlap existe para
+ * suavizar). Achado confirmado por teste sintético (`ChunkerTest`): [measureOverlapRatio] divide
+ * pelo `tokenCount` TOTAL do chunk anterior (que já inclui overlap por ele herdado), não pelo seu
+ * conteúdo próprio — para um item muito curto isolado no próprio grupo (ex.: uma resposta de uma
+ * palavra), essa mistura de denominador faz o overlap medido cair bem abaixo de
+ * [OVERLAP_MIN_RATIO] mesmo quando o [Chunker] inseriu a fração-alvo correta do conteúdo próprio do
+ * item anterior. O teto [MAX_CHUNK_TOKENS] continua validado sempre, para todo `referenceType`
+ * (inclusive `null`).
  *
  * O overlap **não** é lido de nenhum campo interno do [Chunker] — é medido diretamente comparando
  * o texto de dois chunks vizinhos (o maior sufixo de tokens do chunk anterior que também é um
@@ -48,10 +56,13 @@ class ChunkValidator {
             violations += validateChunk(index, chunk, referenceType)
         }
 
-        for (index in 0 until chunks.size - 1) {
-            val current = chunks[index]
-            val next = chunks[index + 1]
-            validateOverlap(index, current, next)?.let { violations += it }
+        // Overlap pulado inteiramente para NUMBERED_ITEM — ver KDoc da classe.
+        if (referenceType != ReferenceType.NUMBERED_ITEM) {
+            for (index in 0 until chunks.size - 1) {
+                val current = chunks[index]
+                val next = chunks[index + 1]
+                validateOverlap(index, current, next)?.let { violations += it }
+            }
         }
 
         return if (violations.isEmpty()) ChunkValidationResult.Valid else ChunkValidationResult.Invalid(violations)

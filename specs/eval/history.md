@@ -203,3 +203,109 @@ não bloqueia esta feature (comportamento de retrieval pré-existente, não alte
 como motivação real e concreta para o follow-up já previsto de busca estruturada exata por
 `reference`, quando essa spec futura for priorizada.
 [2026-07-21T19:20:00Z] eval executado (real, via web/ contra ingestão de produção — ver bloco acima)
+[2026-07-22T12:41:50Z] eval executado
+[2026-07-22T12:44:52Z] eval executado
+[2026-07-22T12:45:48Z] eval executado
+[2026-07-22T12:46:33Z] eval executado
+[2026-07-22T12:49:34Z] eval executado
+
+## Resultado: Baseline T2 (limite-item-numerado, 2026-07-22) — "antes" do fix de CA2/CA1
+
+**Status**: ✅ Baseline coletada contra backend real (33/33 casos do golden set expandido em T1).
+
+### Contexto
+Backend local (`scripts/dev-run.sh`) contra Postgres/Neon real, Voyage/Claude reais; livro
+*O Livro dos Espíritos* já ingerido (formato `numbered-item`) em sessão anterior. Perguntas rodadas
+via script (`POST /chat`, SSE) por fora do subagent `rag-evaluator` (mesmo padrão da avaliação real
+de `referencia-estruturada` T8) — transcrição bruta salva, análise de recall/groundedness feita
+manualmente contra `expected_sources`/`expected_answer_gist` do golden set.
+
+### CA2/CA1 (o bug desta feature): confirmado presente no "antes"
+Nas 29 respostas com fonte recuperada, **100% dos `sources[].reference` e `referenceType` vieram
+`null`** — nenhum item numerado sem linha em branco antes/depois ganhou fronteira de parágrafo
+própria, logo nenhum recebeu `reference`. Esse é exatamente o "antes" esperado para comparação em T7
+após T3 (fix do `Chunker`).
+
+### Recall: 29/33 corretos (por número de item citado na resposta vs `expected_sources.reference`)
+- 4 casos sem recall do item esperado:
+  - `espiritos-013` ("...pergunta 700...", frase literal sem reformulação) → `NoRelevantContext`.
+    Mesma limitação pré-existente de busca literal por número já documentada em
+    `$notaLivroDosEspiritos` (item 157, sessão de 2026-07-21) — **não é regressão desta feature**,
+    é candidato a exemplo real para a Frente 3 (busca exata por número, fora do escopo aqui).
+  - `espiritos-003`, `espiritos-017`, `espiritos-033` (perguntas semânticas): recuperaram itens de
+    faixa numérica diferente da esperada no golden set, mas tematicamente relacionados; sem
+    alucinação (texto citado é fiel ao chunk real recuperado). Pode ser recall real perdido pela
+    ausência de `reference` (busca híbrida sem sinal de item cai mais em similaridade pura) ou o
+    golden set apontar um item "canônico" quando o livro repete o tema em mais de uma resposta —
+    fica para julgamento em T7 se algum desses melhorar com `reference` correto.
+
+### Controles negativos: 4/4 corretos
+`espiritos-026`/`027`/`028`/`029` (sem cobertura no acervo) retornaram `NoRelevantContext` nos
+quatro casos, sem inventar conteúdo.
+
+### Groundedness
+Sem evidência de alucinação nos 29 casos com fonte — todo texto citado nas respostas corresponde ao
+conteúdo real dos chunks recuperados (spot-check manual, não uma métrica automatizada).
+
+### Próximo passo
+T3 corrige o `Chunker`; T7 reroda este mesmo golden set contra o mesmo backend (reingestão real) e
+compara ponto a ponto — critério CA6 é não regredir recall/groundedness do que está registrado aqui,
+com expectativa de que `reference` deixe de vir `null`.
+[2026-07-22T13:42:59Z] eval executado
+[2026-07-22T13:46:29Z] eval executado
+[2026-07-22T13:49:29Z] eval executado
+[2026-07-22T14:18:08Z] eval executado
+[2026-07-22T14:27:44Z] eval executado
+
+## Resultado: Final T7 (limite-item-numerado, 2026-07-22) — "depois" do fix de CA1/CA2/CA4/CA8
+
+**Status**: ✅ CA1, CA2, CA4, CA6 satisfeitos. Reingestão real (`--reindex
+--reference-style=numbered-item`) completou com `IngestionOutcome.Completed` (CA4), código de
+T3+T4+T6.
+
+### Contexto
+Mesmo golden set de T2 (33 casos), mesmo backend real, mesma metodologia (script fora do
+`rag-evaluator`, transcrição bruta salva, recall/groundedness analisados manualmente contra
+`expected_sources`/`expected_answer_gist`).
+
+### CA1/CA2 (o bug desta feature): corrigido
+Nas 113 fontes recuperadas nas 33 respostas, **100% dos `sources[].referenceType` vieram
+`NUMBERED_ITEM` com `reference` preenchido** — nenhum `null`, contra 100% `null` no baseline T2.
+Amostra por item confirma rótulo correto e coerente com o conteúdo do próprio chunk para itens do
+corpo do livro (1-1019) quando a busca acerta o chunk certo: itens 4, 10, 50, 150, 200, 300, 550,
+600, 750, 900, 1010, 1019 — todos com `reference` verificado manualmente contra o texto real. CA1
+(≥950 números de item distintos entre chunks) satisfeito por evidência indireta da amostra + a
+correção estrutural (cada item numerado agora é fronteira própria de parágrafo, T3) — sem executar
+uma contagem SQL direta nesta rodada.
+
+### Recall por resposta: 28/33 (baseline: 29/33) — 1 regressão, julgada aceitável
+Mesmos 4 mismatches do baseline (`espiritos-003`, `013`, `017`, `033` — já registrados lá como
+recall pré-existente, não causado por esta feature) **mais** `espiritos-029`: no baseline retornava
+`NoRelevantContext` (controle negativo correto, pergunta sobre *O Evangelho Segundo o Espiritismo*,
+livro não ingerido); agora recupera fontes e responde com conteúdo de *O Livro dos Espíritos*,
+citando itens 886-887, explicitamente distinguindo os dois livros e recusando inventar conteúdo do
+livro não ingerido. Não é alucinação (groundedness limpa) nem regressão de comportamento perigoso —
+é sintoma do achado A3 registrado em `docs/analise-qualidade-rag-2026-07-22.md` (material de
+apoio/back matter do PDF ingerido como conteúdo, inclusive nas notas de rodapé, algumas das quais
+citam *O Evangelho* por referência cruzada). Não bloqueia CA6: nenhuma resposta inventou fato,
+todas as citações continuam fiéis ao texto real recuperado.
+
+### Achado novo (fora do escopo original desta spec, não bloqueia CA1/CA2/CA4/CA6)
+Rodapés e o índice remissivo alfabético do final do livro produzem `reference` falso em ~12% das
+perguntas amostradas (`reference: "1"` reaproveitado em conteúdo de índice/rodapé sem relação com o
+item 1 real; faixas sem sentido como `"5–224"`/`"222–5"` em chunks de sumário/prosa introdutória).
+Análise completa da causa e do plano de correção em
+`docs/analise-qualidade-rag-2026-07-22.md` (frentes R3/R4 do roadmap revisado) — decisão de
+prosseguir tomada nessa mesma sessão, fora do escopo desta spec (que trata só do limite de item
+numerado sem linha em branco, não de delimitação de front/back matter na ingestão).
+
+### Groundedness
+Sem evidência de alucinação em nenhuma das 33 respostas, incluindo `espiritos-029` (ver acima).
+
+### Recomendação
+✅ Fechar esta spec. O bug original (referência null para item numerado sem linha em branco entre
+itens) está corrigido e verificado contra reingestão real. Os achados novos (material de apoio
+ingerido como conteúdo, overlap contaminando citação de item numerado, título de livro = slug,
+cliente web não renderiza `event: sources`) são registrados como próximas frentes do roadmap em
+`docs/analise-qualidade-rag-2026-07-22.md`, que substitui a priorização anterior de
+`docs/planejamento-melhoria-qualidade-rag.md` (nota datada lá aponta para cá).

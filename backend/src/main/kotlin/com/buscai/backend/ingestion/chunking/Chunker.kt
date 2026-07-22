@@ -143,7 +143,7 @@ class Chunker {
         val paragraphs =
             pageTexts
                 .toSortedMap()
-                .flatMap { (page, text) -> splitIntoParagraphs(page, text) }
+                .flatMap { (page, text) -> splitIntoParagraphs(page, text, referenceType) }
         val annotated = if (referenceType != null) ReferenceAnnotator.annotate(paragraphs, referenceType) else paragraphs
         // NUMBERED_ITEM: funde parágrafos de continuação (mesma reference não-nula do parágrafo
         // anterior, sem abertura numerada própria) no parágrafo que abriu o item — ver
@@ -291,18 +291,85 @@ class Chunker {
         return groups
     }
 
+    /**
+     * Divide o texto de uma página em parágrafos. Limite de parágrafo é sempre uma linha em branco
+     * ([PARAGRAPH_BREAK]); quando [referenceType] é [ReferenceType.NUMBERED_ITEM], o início de uma
+     * linha que abre um item ([NUMBERED_ITEM_OPENING_REGEX], fonte única com [ReferenceAnnotator])
+     * também é fronteira de parágrafo — o livro real ("O Livro dos Espíritos") não tem linha em
+     * branco entre um item e o próximo, então sem essa fronteira extra vários itens consecutivos se
+     * fundiriam num único parágrafo de prosa e [ReferenceAnnotator] nunca encontraria a abertura de
+     * cada item individualmente (bug corrigido nesta task). Para `referenceType` `null`/`CHAPTER`,
+     * comportamento inalterado (CA3): só linha em branco quebra parágrafo.
+     */
     private fun splitIntoParagraphs(
         page: Int,
         text: String,
+        referenceType: ReferenceType?,
     ): List<ParagraphUnit> {
         val units = mutableListOf<ParagraphUnit>()
         var start = 0
         for (match in PARAGRAPH_BREAK.findAll(text)) {
-            addParagraphIfNotBlank(page, text, start, match.range.first, units)
+            splitBlankLineSegment(page, text, start, match.range.first, referenceType, units)
             start = match.range.last + 1
         }
-        addParagraphIfNotBlank(page, text, start, text.length, units)
+        splitBlankLineSegment(page, text, start, text.length, referenceType, units)
         return units
+    }
+
+    /**
+     * Divide o segmento `[start, end)` de [text] (já delimitado por linha em branco, ver
+     * [splitIntoParagraphs]) em um único parágrafo, ou em um parágrafo por item quando
+     * [referenceType] é [ReferenceType.NUMBERED_ITEM] e o segmento contém mais de uma abertura de
+     * item consecutiva sem linha em branco entre elas. Reaproveita [addParagraphIfNotBlank] para
+     * cada sub-parágrafo, o que já recalcula `charOffset` corretamente (soma de `leadingWhitespace`
+     * a partir do início real de cada sub-parágrafo, não só do segmento inteiro).
+     */
+    private fun splitBlankLineSegment(
+        page: Int,
+        text: String,
+        start: Int,
+        end: Int,
+        referenceType: ReferenceType?,
+        out: MutableList<ParagraphUnit>,
+    ) {
+        if (referenceType != ReferenceType.NUMBERED_ITEM) {
+            addParagraphIfNotBlank(page, text, start, end, out)
+            return
+        }
+        var segmentStart = start
+        for (lineStart in itemOpeningLineStarts(text, start, end)) {
+            // A própria primeira linha do segmento não conta como fronteira nova — só a partir da
+            // segunda abertura de item dentro do segmento é que há uma quebra a introduzir.
+            if (lineStart <= segmentStart) continue
+            addParagraphIfNotBlank(page, text, segmentStart, lineStart, out)
+            segmentStart = lineStart
+        }
+        addParagraphIfNotBlank(page, text, segmentStart, end, out)
+    }
+
+    /**
+     * Posições absolutas (em [text]) de início de linha, dentro de `[start, end)`, cuja linha casa
+     * [NUMBERED_ITEM_OPENING_REGEX] — usadas como fronteira extra de parágrafo por
+     * [splitBlankLineSegment]. Cada linha é testada isoladamente como sua própria string (nunca com
+     * `Regex.MULTILINE`), para o padrão compartilhado com [ReferenceAnnotator] continuar sendo o
+     * mesmo objeto `Regex` nos dois lugares (ver comentário do próprio padrão).
+     */
+    private fun itemOpeningLineStarts(
+        text: String,
+        start: Int,
+        end: Int,
+    ): List<Int> {
+        val positions = mutableListOf<Int>()
+        var lineStart = start
+        while (lineStart < end) {
+            val newlineIndex = text.indexOf('\n', lineStart)
+            val lineEnd = if (newlineIndex == -1 || newlineIndex >= end) end else newlineIndex
+            if (NUMBERED_ITEM_OPENING_REGEX.containsMatchIn(text.substring(lineStart, lineEnd))) {
+                positions += lineStart
+            }
+            lineStart = if (newlineIndex == -1 || newlineIndex >= end) end else newlineIndex + 1
+        }
+        return positions
     }
 
     private fun addParagraphIfNotBlank(

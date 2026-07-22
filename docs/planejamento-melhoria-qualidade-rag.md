@@ -1,5 +1,14 @@
 # Planejamento — melhoria de qualidade do RAG (pós-eval real de 2026-07-21)
 
+> **Nota (2026-07-22, `specs/limite-item-numerado/` T7 fechado):** este roadmap foi revisado após
+> a reingestão real com `reference` corrigido — a Frente 1 (palavras coladas) foi **resolvida** sem
+> spec dedicada (o PDF da reingestão de 2026-07-22 extraiu limpo; zero ocorrência do defeito nas
+> 113 fontes analisadas). Surgiram achados novos (front/back matter ingerido como conteúdo, overlap
+> contaminando citação de item numerado, título de livro = slug, cliente web não renderiza
+> `event: sources`) que repriorizam as frentes abaixo. Diagnóstico completo e plano atualizado em
+> `docs/analise-qualidade-rag-2026-07-22.md` — **esse documento é a referência vigente**; o
+> conteúdo original abaixo fica como histórico do diagnóstico anterior.
+
 Roadmap das frentes de melhoria identificadas após a primeira avaliação real do pipeline
 (ingestão de *O Livro dos Espíritos* com `--reference-style=numbered-item`, perguntas reais via
 `web/` contra o backend real — resultado completo em `specs/eval/history.md`, bloco "avaliação real

@@ -6,8 +6,16 @@ package com.buscai.backend.ingestion.chunking
  */
 private val CHAPTER_HEADER_REGEX = Regex("^CAP[ÍI]TULO\\s+([IVXLCDM]+|\\d+)", RegexOption.IGNORE_CASE)
 
-/** Abertura de item numerado (ADR-0013): `"157. Que é a morte?"` — o número no início do parágrafo. */
-private val NUMBERED_ITEM_OPENING_REGEX = Regex("^\\s*(\\d+)\\.\\s")
+/**
+ * Abertura de item numerado (ADR-0013): `"157. Que é a morte?"` — o número no início do parágrafo.
+ * Fonte única (`internal`, não `private`): também usada por [Chunker.splitIntoParagraphs] como
+ * fronteira extra de parágrafo quando `referenceType == NUMBERED_ITEM` (task de limite de item
+ * numerado sem linha em branco) — aqui é testada contra o parágrafo inteiro (equivalente a testar
+ * só a primeira linha, já que `^` sem `MULTILINE` só casa no início do texto); lá é testada
+ * linha a linha, cada linha como sua própria string, então o mesmo `^` funciona sem precisar de
+ * `MULTILINE`. Nunca duplicar este padrão.
+ */
+internal val NUMBERED_ITEM_OPENING_REGEX = Regex("^\\s*(\\d+)\\.\\s")
 
 /**
  * Anota cada [ParagraphUnit] de [units] (na ordem em que aparecem — página a página, parágrafo a

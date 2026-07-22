@@ -3,6 +3,28 @@
 ## Status
 Aceito — 2026-07-12
 
+> **Nota (2026-07-21, `specs/limite-item-numerado/`, CA8):** a chave de gatilho skip/reindex
+> (`bookId`, `hashDoArquivo`, `versãoDoModeloDeEmbedding`) decidida acima tem uma lacuna real: com
+> `--reindex`, se essa combinação bater com a versão ativa (mesmo arquivo, mesmo modelo), a CLI
+> pulava mesmo assim — a flag existe justamente para forçar reprocessamento e não deveria respeitar
+> o mesmo gate que ela serve para contornar. Decisão aprovada: `--reindex=true` sempre reprocessa,
+> independentemente da chave de gatilho bater ou não; sem a flag, o comportamento decidido acima
+> (skip se bate, exige a flag se não bate) continua valendo. Ainda pendente de implementação —
+> rastreado em `specs/limite-item-numerado/tasks.md` T6 (task futura desta mesma spec).
+
+> **Nota (2026-07-22, `specs/limite-item-numerado/`, achado de overlap):** a "Verificação estrutural
+> de chunk" descrita abaixo (overlap real dentro de 10–20%) nunca tinha sido exercitada de verdade
+> contra itens numerados atômicos, porque nenhum item era detectado como fronteira própria antes da
+> correção de `Chunker.splitIntoParagraphs` (ver ADR-0013 seção 4). Uma vez corrigida a detecção, o
+> teste sintético confirmou violação real: `ChunkValidator.measureOverlapRatio` divide o overlap
+> medido pelo `tokenCount` **total** do chunk anterior (que já inclui overlap por ele herdado), não
+> pelo conteúdo próprio — para um item curto isso facilmente estoura o teto de 20% mesmo sem
+> problema real de continuidade. Decisão: a checagem de overlap deixa de se aplicar quando
+> `referenceType == NUMBERED_ITEM` — mesmo precedente já aberto pelo ADR-0013 (seção 4) para o piso
+> mínimo de tokens (item numerado é a unidade atômica de chunk; overlap existe para dar continuidade
+> quando o corte de parágrafo é arbitrário, premissa que não se aplica quando o corte é sempre uma
+> fronteira de item deliberada). Ver `specs/limite-item-numerado/plan.md`.
+
 ## Contexto
 Ao especificar a feature de ingestão (`specs/ingestao-pdf/spec.md`), o `android-architect` apontou
 que o [ADR-0002](0002-ingestao-fora-do-app.md) decidiu usar hash SHA-256 do arquivo para

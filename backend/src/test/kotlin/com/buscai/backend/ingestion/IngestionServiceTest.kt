@@ -573,6 +573,53 @@ class IngestionServiceTest {
     }
 
     /**
+     * CA8 (`spec.md`), correção do `--reindex` (ADR-0008, nota 2026-07-21/22): mesma
+     * `(bookId, fileHash, embeddingModel, embeddingModelVersion)` da versão ativa (mesmo cenário
+     * do teste de skip acima), mas agora com `reindex=true` — a flag deve vencer o skip e forçar
+     * reprocessamento, criando uma nova `BookVersion` e trocando a versão ativa.
+     */
+    @Test
+    fun `reindex=true forca reprocessamento mesmo com a mesma chave de gatilho da versao ativa`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+
+        val first =
+            ingestionService.ingest(bookId = "livro-reindex-mesma-chave-t6", title = "Livro Reindex T6", file = file)
+        val completedFirst = first as? IngestionOutcome.Completed
+        assertNotNull(completedFirst, "esperava IngestionOutcome.Completed na primeira ingestão, obteve: $first")
+        checkNotNull(completedFirst)
+
+        val second =
+            ingestionService.ingest(
+                bookId = "livro-reindex-mesma-chave-t6",
+                title = "Livro Reindex T6",
+                file = file,
+                reindex = true,
+            )
+
+        val completedSecond = second as? IngestionOutcome.Completed
+        assertNotNull(
+            completedSecond,
+            "esperava IngestionOutcome.Completed com reindex=true e a mesma chave de gatilho, obteve: $second",
+        )
+        checkNotNull(completedSecond)
+        assertTrue(
+            completedSecond.versionId != completedFirst.versionId,
+            "reindex=true deveria criar uma nova BookVersion, não reaproveitar a versão ativa existente",
+        )
+
+        val book = bookRepository.findById("livro-reindex-mesma-chave-t6").orElseThrow()
+        assertEquals(
+            completedSecond.versionId,
+            book.activeVersionId,
+            "após o reindex forçado, a versão ativa deveria ser a nova versão",
+        )
+        assertTrue(
+            bookVersionRepository.findById(completedFirst.versionId).isEmpty,
+            "a versão antiga deveria ter sido removida pelo swap atômico do reindex forçado",
+        )
+    }
+
+    /**
      * CA4 (`spec.md`), sub-caso "bloqueio" do ADR-0008: mesmo `bookId`, PDF com conteúdo (logo
      * hash) diferente e sem `reindex=true` — a ingestão é bloqueada, sem reprocessar, e a versão
      * ativa anterior permanece intacta.

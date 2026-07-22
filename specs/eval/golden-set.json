@@ -1,6 +1,6 @@
 {
-  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças. Preenchido pela primeira vez em specs/referencia-estruturada/tasks.md T8 (2026-07-21) com 3 casos sobre 'O Livro dos Espíritos' (livro numbered-item real). Avaliação real rodada em 2026-07-21 (ver $notaLivroDosEspiritos) — expected_answer_gist já reflete o conteúdo real verificado, não mais uma aproximação.",
-  "$notaLivroDosEspiritos": "Avaliação real executada em 2026-07-21: livro ingerido de fato (--book-id=o-livro-dos-espiritos --reference-style=numbered-item, PDF local do usuário, Voyage embeddings reais) contra um Postgres/Neon real, perguntado via web/ no navegador contra o backend real (Claude real). Resultado (relatado no estilo do rag-evaluator, ver specs/eval/history.md para o bloco completo): groundedness 3/3 — nenhuma resposta inventou conteúdo, nenhuma citou página, todas citaram o número do item corretamente; recall com uma falha real observada — a pergunta com a frase exata 'qual a pergunta 157?' (sem o nome do livro, sem scope) retornou NoRelevantContext na primeira tentativa, só recuperando o item 157 depois de reformulada semanticamente ('o que acontece depois da morte?'). Isso não é uma regressão desta feature (retrieval/RRF não mudou aqui, só o rótulo de citação) — é uma limitação pré-existente de busca lexical/vetorial para consulta literal por número de item, exatamente o caso que specs/referencia-estruturada/plan.md ('Fora do plano desta feature') já registra como follow-up ('busca estruturada exata por número de item'). expected_answer_gist abaixo foi corrigido para o conteúdo real dos itens 157/158 (a aproximação original estava topicamente certa mas com o texto exato errado).",
+  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças. Preenchido pela primeira vez em specs/referencia-estruturada/tasks.md T8 (2026-07-21) com 3 casos sobre 'O Livro dos Espíritos' (livro numbered-item real). Expandido de 3 para 33 casos em specs/limite-item-numerado/tasks.md T1 (2026-07-22, CA7) — conteúdo extraído e verificado diretamente contra o PDF real do usuário (pdftotext -layout, numeração 1-1019 confirmada linha a linha) nesta sessão; ainda pendente da confirmação final do dono do produto sobre o conteúdo antes de rodar T2 (baseline).",
+  "$notaLivroDosEspiritos": "Avaliação real executada em 2026-07-21 (3 casos originais): livro ingerido de fato (--book-id=o-livro-dos-espiritos --reference-style=numbered-item, PDF local do usuário, Voyage embeddings reais) contra um Postgres/Neon real, perguntado via web/ no navegador contra o backend real (Claude real). Resultado (relatado no estilo do rag-evaluator, ver specs/eval/history.md para o bloco completo): groundedness 3/3 — nenhuma resposta inventou conteúdo, nenhuma citou página, todas citaram o número do item corretamente; recall com uma falha real observada — a pergunta com a frase exata 'qual a pergunta 157?' (sem o nome do livro, sem scope) retornou NoRelevantContext na primeira tentativa, só recuperando o item 157 depois de reformulada semanticamente ('o que acontece depois da morte?'). Isso não é uma regressão desta feature (retrieval/RRF não mudou aqui, só o rótulo de citação) — é uma limitação pré-existente de busca lexical/vetorial para consulta literal por número de item, exatamente o caso que specs/referencia-estruturada/plan.md ('Fora do plano desta feature') já registra como follow-up ('busca estruturada exata por número de item'). Os 30 casos novos (espiritos-004 a espiritos-033, T1 de specs/limite-item-numerado/) ainda não foram rodados contra o backend real — servem de 'antes' (T2) e 'depois' (T7) da correção do limite de item numerado sem linha em branco.",
   "schema_example": {
     "id": "ex-001",
     "question": "Pergunta em linguagem natural como o usuário faria no app",
@@ -61,6 +61,302 @@
       ],
       "scope": "o-livro-dos-espiritos",
       "notes": "Groundedness é o critério principal aqui (pergunta em linguagem livre, não lookup de item); recall@k é satisfeito se algum item da faixa de numeração sobre a morte aparecer no top-k, não necessariamente o 157 exato. Recall/groundedness real (2026-07-21): reformulada como 'o que o livro dos espíritos fala sobre o que acontece depois da morte?', recuperou o item 157 corretamente e citou fielmente pergunta e resposta reais — ver $notaLivroDosEspiritos."
+    },
+    {
+      "id": "espiritos-004",
+      "question": "Qual a pergunta 1 do Livro dos Espíritos?",
+      "expected_answer_gist": "Item 1 pergunta 'Que é Deus?'; a resposta é 'Deus é a inteligência suprema, causa primária de todas as coisas.'",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "1", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro. Texto extraído e verificado via pdftotext -layout contra o PDF real (T1, 2026-07-22)."
+    },
+    {
+      "id": "espiritos-005",
+      "question": "O que a pergunta 4 diz sobre a prova da existência de Deus?",
+      "expected_answer_gist": "A prova está no axioma de que não há efeito sem causa: o Universo existe, logo tem uma causa; duvidar de Deus é negar que todo efeito tem uma causa.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "4", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro na pergunta (scope resolve o livro)."
+    },
+    {
+      "id": "espiritos-006",
+      "question": "Segundo o item 10, o homem consegue compreender a natureza íntima de Deus?",
+      "expected_answer_gist": "Não; falta ao homem o sentido necessário para isso.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "10", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro. Resposta curta — bom teste de groundedness sem viés de conteúdo longo."
+    },
+    {
+      "id": "espiritos-007",
+      "question": "No Livro dos Espíritos, a pergunta 50 diz que a espécie humana começou por um único homem?",
+      "expected_answer_gist": "Não; aquele a quem chamamos Adão não foi o primeiro nem o único a povoar a Terra.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "50", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro."
+    },
+    {
+      "id": "espiritos-008",
+      "question": "O que diz o item 150 sobre a individualidade da alma após a morte?",
+      "expected_answer_gist": "A alma conserva sempre sua individualidade após a morte; comprova isso porque continua a ter um fluido próprio (o perispírito), haurido na atmosfera do seu planeta, que guarda a aparência da última encarnação.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "150", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro. Item tem sub-perguntas (a, b) dentro do mesmo número — ainda é um único chunk/reference '150', não multi-chunk."
+    },
+    {
+      "id": "espiritos-009",
+      "question": "Os espíritos têm sexo, segundo o Livro dos Espíritos, item 200?",
+      "expected_answer_gist": "Não como entendemos, pois o sexo depende da organização física; entre eles há amor e simpatia, baseados na concordância dos sentimentos.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "200", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro."
+    },
+    {
+      "id": "espiritos-010",
+      "question": "O que diz a pergunta 300 sobre a união entre espíritos simpáticos?",
+      "expected_answer_gist": "Espíritos que atingiram a perfeição permanecem reciprocamente unidos; nas esferas inferiores, um espírito que se eleva deixa de simpatizar com os que ficaram abaixo dele.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "300", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro."
+    },
+    {
+      "id": "espiritos-011",
+      "question": "O que o Livro dos Espíritos responde sobre vender a alma a Satanás, na pergunta 550?",
+      "expected_answer_gist": "É uma alegoria: quem busca riqueza ou favores através dos espíritos rebela-se contra a Providência e renuncia à missão e às provas que lhe cabem neste mundo, sofrendo consequências na vida futura.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "550", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro."
+    },
+    {
+      "id": "espiritos-012",
+      "question": "Segundo o item 600, a alma dos animais também fica errante depois da morte, como a do homem?",
+      "expected_answer_gist": "Fica numa espécie de erraticidade, mas não é um espírito errante propriamente dito: o espírito errante pensa e age por livre vontade, faculdade que o do animal não tem; a consciência de si mesmo é o principal atributo do espírito humano.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "600", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro."
+    },
+    {
+      "id": "espiritos-013",
+      "question": "No Livro dos Espíritos, pergunta 700, a igualdade numérica entre os sexos indica a proporção em que devem se unir?",
+      "expected_answer_gist": "Sim, porque tudo na Natureza tem um fim.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "700", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro. Resposta muito curta — testa se o modelo não inventa contexto extra além do chunk."
+    },
+    {
+      "id": "espiritos-014",
+      "question": "Qual crime é mais condenável aos olhos de Deus, o parricídio ou o infanticídio, segundo o item 750?",
+      "expected_answer_gist": "Ambos são igualmente condenáveis, porque todo crime é um crime.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "750", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro."
+    },
+    {
+      "id": "espiritos-015",
+      "question": "O que a pergunta 900 do Livro dos Espíritos diz sobre acumular riqueza para os herdeiros sem fazer o bem?",
+      "expected_answer_gist": "Não há desculpa válida para isso; é um compromisso com a consciência má.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "900", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro."
+    },
+    {
+      "id": "espiritos-016",
+      "question": "O reinado do bem poderá se implantar na Terra, segundo o item 1019?",
+      "expected_answer_gist": "Sim; o bem reinará na Terra quando os bons espíritos predominarem entre os que vierem habitá-la, por meio do progresso moral e da prática das leis de Deus, afastando o orgulho e o egoísmo.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "1019", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, sem nome do livro. É o último item do livro (numeração vai de 1 a 1019, ADR-0013/diagnóstico) — bom teste de fronteira final da detecção."
+    },
+    {
+      "id": "espiritos-017",
+      "question": "Por que as pessoas às vezes se sentem culpadas depois de morrer?",
+      "expected_answer_gist": "Quem praticou o mal se sente envergonhado no primeiro momento; a alma do justo, ao contrário, sente-se aliviada de um grande peso, pois não teme nenhum julgamento.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "159", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, sem nome do livro, sem número de item — pode legitimamente recuperar item vizinho de 157/158 sobre o mesmo tema (transição para o mundo espírita)."
+    },
+    {
+      "id": "espiritos-018",
+      "question": "O Livro dos Espíritos diz que o espírito encarnado gosta de estar preso ao corpo?",
+      "expected_answer_gist": "Não; o espírito encarnado aspira constantemente à sua libertação, como um encarcerado deseja sair do cárcere — e deseja isso tanto mais quanto mais grosseiro for o corpo.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "400", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, com nome do livro."
+    },
+    {
+      "id": "espiritos-019",
+      "question": "O que acontece com quem se mata na esperança de ter uma vida melhor mais rápido?",
+      "expected_answer_gist": "É considerado uma loucura: o suicídio retarda a entrada num mundo melhor, e a pessoa terá que pedir para voltar e concluir, sob as mesmas condições, a vida que interrompeu por uma ideia falsa.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "950", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, sem nome do livro."
+    },
+    {
+      "id": "espiritos-020",
+      "question": "Segundo o Livro dos Espíritos, é possível reparar nossas faltas ainda nesta vida?",
+      "expected_answer_gist": "Sim, mas reparando de fato o mal cometido através do bem — não bastam privações pueris ou esmolas superficiais; um esforço real, mesmo pequeno, apaga mais faltas do que um sofrimento sem propósito.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "1000", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, com nome do livro."
+    },
+    {
+      "id": "espiritos-021",
+      "question": "O laço de afinidade entre espíritos parecidos traz felicidade a eles?",
+      "expected_answer_gist": "Sim; espíritos com simpatia recíproca para o bem formam famílias espirituais pela identidade de sentimentos e encontram nisso um dos maiores gozos, sem temer falsos amigos ou hipócritas.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "980", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, sem nome do livro."
+    },
+    {
+      "id": "espiritos-022",
+      "question": "O Livro dos Espíritos afirma que a dupla vista (clarividência) pode ser desenvolvida com prática?",
+      "expected_answer_gist": "Sim; do trabalho sempre resulta o progresso, embora o organismo físico também influencie a faculdade — há organismos que lhe são refratários.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "450", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, com nome do livro."
+    },
+    {
+      "id": "espiritos-023",
+      "question": "Como se dá a separação da alma e do corpo no momento da morte, e a alma sente algo nesse momento?",
+      "expected_answer_gist": "A separação é gradual, não instantânea: os laços que prendem a alma ao corpo se desatam pouco a pouco, não se quebram de repente (item 155). No momento da morte, a alma sente esses laços se desfazendo, emprega esforços para se libertar por completo e, já em parte desprendida da matéria, antegoza o estado de Espírito (item 157).",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "155", "referenceType": "NUMBERED_ITEM" },
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "157", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta multi-chunk — a resposta completa exige combinar o item 155 (mecanismo gradual da separação) com o item 157 (o que a alma sente nesse momento), dois chunks distintos e adjacentes. Sucesso de recall: ambos os itens (ou um intervalo que os contenha) aparecem entre os chunks recuperados."
+    },
+    {
+      "id": "espiritos-024",
+      "question": "O que o Livro dos Espíritos diz sobre a individualidade da alma e o que ela sente ao reconhecer que morreu?",
+      "expected_answer_gist": "A alma conserva sempre sua individualidade após a morte, guardando um fluido próprio (perispírito) com a aparência da última encarnação, e leva consigo apenas a lembrança e o desejo de melhorar (item 150). Ao reconhecer que está no mundo dos espíritos, quem praticou o mal sente vergonha, e a alma do justo sente-se aliviada, sem temer julgamento (item 159).",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "150", "referenceType": "NUMBERED_ITEM" },
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "159", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta multi-chunk — combina o item 150 (individualidade/memória) com o item 159 (sensação ao reconhecer a morte), dois chunks temáticos relacionados mas não adjacentes (distância de ~9 itens)."
+    },
+    {
+      "id": "espiritos-025",
+      "question": "Segundo o Livro dos Espíritos, o que são Deus, o espírito e a matéria, e como eles se relacionam?",
+      "expected_answer_gist": "Deus é a inteligência suprema, causa primária de todas as coisas (item 1). O espírito é o princípio inteligente do Universo (item 23). Deus, espírito e matéria constituem a 'trindade universal'; entre o espírito e a matéria existe um fluido universal intermediário, necessário porque a matéria é grosseira demais para que o espírito aja diretamente sobre ela (item 27).",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "1", "referenceType": "NUMBERED_ITEM" },
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "23", "referenceType": "NUMBERED_ITEM" },
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "27", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta multi-chunk com três itens (1, 23, 27) — teste mais exigente de multi-chunk, cobrindo os elementos gerais do Universo segundo o Capítulo I/II do livro."
+    },
+    {
+      "id": "espiritos-026",
+      "question": "Quais os efeitos colaterais mais comuns da metformina?",
+      "expected_answer_gist": "Nenhum conteúdo do acervo cobre medicina/farmacologia — resposta esperada é NoRelevantContext, sem inventar informação médica.",
+      "expected_sources": [],
+      "scope": "all",
+      "notes": "Categoria: pergunta sem resposta no acervo — tópico completamente fora do domínio (medicina), sem relação com nenhum livro ingerido."
+    },
+    {
+      "id": "espiritos-027",
+      "question": "Qual a receita tradicional de brigadeiro gourmet?",
+      "expected_answer_gist": "Nenhum conteúdo do acervo cobre culinária — resposta esperada é NoRelevantContext.",
+      "expected_sources": [],
+      "scope": "all",
+      "notes": "Categoria: pergunta sem resposta no acervo — tópico trivialmente fora do domínio, controle negativo simples."
+    },
+    {
+      "id": "espiritos-028",
+      "question": "O que Kant diz sobre o imperativo categórico?",
+      "expected_answer_gist": "O acervo não contém obras de Kant nem filosofia kantiana — resposta esperada é NoRelevantContext, mesmo sendo um tema adjacente (filosofia/moral) ao conteúdo real do acervo.",
+      "expected_sources": [],
+      "scope": "all",
+      "notes": "Categoria: pergunta sem resposta no acervo — caso mais difícil que 026/027, pois o domínio (ética/filosofia moral) é tematicamente próximo ao conteúdo real de O Livro dos Espíritos; bom teste de que o retrieval não força uma citação por proximidade temática vaga."
+    },
+    {
+      "id": "espiritos-029",
+      "question": "Segundo o Evangelho Segundo o Espiritismo, o que Jesus ensinou sobre o perdão?",
+      "expected_answer_gist": "O acervo ingerido não inclui 'O Evangelho Segundo o Espiritismo' (outra obra de Allan Kardec) — apenas 'O Livro dos Espíritos'. Resposta esperada é NoRelevantContext, sem confundir as duas obras nem inventar conteúdo do livro não ingerido.",
+      "expected_sources": [],
+      "scope": "all",
+      "notes": "Categoria: pergunta sem resposta no acervo — caso mais difícil e realista: nomeia explicitamente um livro do mesmo autor/domínio que não está no acervo, testando se o sistema distingue livros ingeridos de livros apenas mencionados."
+    },
+    {
+      "id": "espiritos-030",
+      "question": "O dogma da ressurreição da carne é a consagração da reencarnação ensinada pelos espíritos, segundo o Livro dos Espíritos, item 1010?",
+      "expected_answer_gist": "Sim; palavras como essas só parecem despropositadas quando tomadas ao pé da letra — interpretadas com lógica, confirmam a doutrina da pluralidade das existências, conforme a Justiça de Deus.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "1010", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro."
+    },
+    {
+      "id": "espiritos-031",
+      "question": "Uma posição social elevada impede alguém de agir com liberdade e responsabilidade?",
+      "expected_answer_gist": "O mundo tem suas exigências e Deus é justo, levando tudo em conta; mesmo assim, cada um tem a responsabilidade de se esforçar para vencer os obstáculos à sua liberdade de ação.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "850", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, sem nome do livro."
+    },
+    {
+      "id": "espiritos-032",
+      "question": "O Espiritismo vai triunfar da negligência dos homens e do apego às coisas materiais, segundo o item 800?",
+      "expected_answer_gist": "A transformação das ideias é gradual e progressiva, geração após geração — mas mesmo corrigir um único defeito em uma pessoa já representa um avanço real, porque facilita os passos seguintes.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "800", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item, com nome do livro."
+    },
+    {
+      "id": "espiritos-033",
+      "question": "Os espíritos sempre percebem tudo o que acontece ao seu redor, mesmo sem querer?",
+      "expected_answer_gist": "Não necessariamente: de um ponto de vista geral, o espírito só vê e ouve o que quer; espíritos imperfeitos, porém, às vezes veem e ouvem contra sua vontade algo que pode ser útil ao seu aperfeiçoamento.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "250", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: pergunta semântica em linguagem natural, sem nome do livro."
     }
   ]
 }
