@@ -37,32 +37,8 @@ jobs:
       - name: Build, test e ktlint
         run: ./gradlew build --console=plain
 
-  android:
-    name: android (build + lint + test)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: android
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: android-actions/setup-android@v3
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: ktlint
-        run: ./gradlew ktlintCheck --console=plain
-
-      - name: Lint
-        run: ./gradlew lint --console=plain
-
-      - name: Testes unitários
-        run: ./gradlew testDebugUnitTest --console=plain
-
-      - name: Build debug
-        run: ./gradlew assembleDebug --console=plain
+# Job android removido (ver ADR-0011): app Android é scaffold pausado, mantido intocado até
+# decisão explícita de retomar — sem trabalho ativo, ninguém corrige regressões ali (ex.:
+# compileSdk 36 vs. androidx.core 1.19.0 exigindo 37), e um job vermelho permanente só mascara
+# falhas reais em PRs sem relação com android/. wrapper-validation acima continua cobrindo
+# gradlew/android por checar o repo inteiro.
