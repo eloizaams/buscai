@@ -46,7 +46,7 @@ repo (gitignored) se existir, ou já exportados no shell; nenhum segredo fica no
   `web/` estático same-origin (`copyWebStatic` em `backend/build.gradle.kts`) em
   `http://localhost:8080`.
 - `scripts/dev-ingest.sh "<args do IngestCommand>"` — roda a CLI de ingestão (profile `ingest`),
-  ex.: `scripts/dev-ingest.sh "--book-id=dom-casmurro --file=/caminho/livro.pdf"`.
+  ex.: `scripts/dev-ingest.sh "--book-id=dom-casmurro --file=/caminho/livro.pdf --title=Dom Casmurro"`.
 
 Variáveis obrigatórias: `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`,
 `VOYAGE_API_KEY` (ambos scripts) + `ANTHROPIC_API_KEY`, `BUSCAI_API_KEY` (só `dev-run.sh`).

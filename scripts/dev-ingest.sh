@@ -3,8 +3,8 @@
 # backend/src/main/kotlin/com/buscai/backend/ingestion/cli/IngestCommand.kt.
 # Uso: passe os argumentos do IngestCommand como UMA string, exatamente como em --args:
 #   scripts/dev-ingest.sh "--book-id=dom-casmurro --file=/caminho/livro.pdf --title='Dom Casmurro'"
-#   scripts/dev-ingest.sh "--book-id=dom-casmurro --file=/caminho/livro.pdf --reindex"
-#   scripts/dev-ingest.sh "--book-id=o-livro-dos-espiritos --file=/caminho/livro.pdf --reference-style=numbered-item"
+#   scripts/dev-ingest.sh "--book-id=dom-casmurro --file=/caminho/livro.pdf --title='Dom Casmurro' --reindex"
+#   scripts/dev-ingest.sh "--book-id=o-livro-dos-espiritos --file=/caminho/livro.pdf --title='O Livro dos Espíritos' --reference-style=numbered-item"
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +31,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
 fi
 
 if [ "$#" -eq 0 ]; then
-  echo "Uso: $0 \"--book-id=<slug> --file=<caminho-do-pdf> [--title=<titulo>] [--reindex] [--reference-style=chapter|numbered-item]\"" >&2
+  echo "Uso: $0 \"--book-id=<slug> --file=<caminho-do-pdf> --title=<titulo> [--reindex] [--reference-style=chapter|numbered-item]\"" >&2
   exit 1
 fi
 

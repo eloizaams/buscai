@@ -38,13 +38,12 @@ sealed class IngestArgsResult {
 
 /**
  * Parseia e valida os argumentos de linha de comando de `IngestCommand` (T10). Formato aceito:
- * `--book-id=<slug>` e `--file=<caminho-do-pdf>` (obrigatórios), `--title=<titulo>` (opcional —
- * quando ausente, usa o próprio `book-id` como título; o operador pode corrigir depois direto no
- * banco, e um título ausente não impede a busca — não vale a pena obrigar um argumento extra só
- * para isso), `--reindex` (flag booleana: presença = `true`, ADR-0008) e
- * `--reference-style=chapter|numbered-item` (opcional, ADR-0013; ausente = nenhuma detecção de
- * referência, `IngestArgs.referenceType` nulo — comportamento atual). Um valor fora desse conjunto
- * é erro de parsing, nunca chega a [IngestionService.ingest].
+ * `--book-id=<slug>`, `--file=<caminho-do-pdf>` e `--title=<titulo da obra>` (obrigatórios —
+ * `specs/fontes-web-titulo-obra`, 2026-07-22: um título ausente fazia a citação no chat exibir o
+ * slug bruto do `book-id` em vez do título real da obra), `--reindex` (flag booleana: presença =
+ * `true`, ADR-0008) e `--reference-style=chapter|numbered-item` (opcional, ADR-0013; ausente =
+ * nenhuma detecção de referência, `IngestArgs.referenceType` nulo — comportamento atual). Um valor
+ * fora desse conjunto é erro de parsing, nunca chega a [IngestionService.ingest].
  */
 object IngestArgsParser {
     private const val BOOK_ID_KEY = "book-id"
@@ -69,7 +68,7 @@ object IngestArgsParser {
                 else ->
                     return IngestArgsResult.Error(
                         "Argumento não reconhecido: '$arg'. Use --book-id=<slug> --file=<caminho-do-pdf> " +
-                            "[--title=<titulo>] [--reindex] [--reference-style=chapter|numbered-item].",
+                            "--title=<titulo> [--reindex] [--reference-style=chapter|numbered-item].",
                     )
             }
         }
@@ -89,7 +88,10 @@ object IngestArgsParser {
             return IngestArgsResult.Error("Arquivo não encontrado ou ilegível: '$filePath'.")
         }
 
-        val title = options[TITLE_KEY]?.takeIf { it.isNotBlank() } ?: bookId
+        val title = options[TITLE_KEY]
+        if (title.isNullOrBlank()) {
+            return IngestArgsResult.Error("Argumento obrigatório ausente: --title=<titulo da obra>.")
+        }
 
         val referenceStyle = options[REFERENCE_STYLE_KEY]
         val referenceType =
@@ -149,8 +151,8 @@ object IngestionOutcomeFormatter {
  * chat (perfil padrão/produção). Invocação:
  *
  * ```
- * SPRING_PROFILES_ACTIVE=ingest ./gradlew bootRun --args="--book-id=dom-casmurro --file=/caminho/livro.pdf"
- * SPRING_PROFILES_ACTIVE=ingest ./gradlew bootRun --args="--book-id=dom-casmurro --file=/caminho/livro-corrigido.pdf --reindex"
+ * SPRING_PROFILES_ACTIVE=ingest ./gradlew bootRun --args="--book-id=dom-casmurro --file=/caminho/livro.pdf --title=Dom Casmurro"
+ * SPRING_PROFILES_ACTIVE=ingest ./gradlew bootRun --args="--book-id=dom-casmurro --file=/caminho/livro-corrigido.pdf --title=Dom Casmurro --reindex"
  * ```
  *
  * Parseia os argumentos ([IngestArgsParser]) antes de chamar [IngestionService.ingest] — erro de
