@@ -203,3 +203,51 @@ não bloqueia esta feature (comportamento de retrieval pré-existente, não alte
 como motivação real e concreta para o follow-up já previsto de busca estruturada exata por
 `reference`, quando essa spec futura for priorizada.
 [2026-07-21T19:20:00Z] eval executado (real, via web/ contra ingestão de produção — ver bloco acima)
+[2026-07-22T12:41:50Z] eval executado
+[2026-07-22T12:44:52Z] eval executado
+[2026-07-22T12:45:48Z] eval executado
+[2026-07-22T12:46:33Z] eval executado
+[2026-07-22T12:49:34Z] eval executado
+
+## Resultado: Baseline T2 (limite-item-numerado, 2026-07-22) — "antes" do fix de CA2/CA1
+
+**Status**: ✅ Baseline coletada contra backend real (33/33 casos do golden set expandido em T1).
+
+### Contexto
+Backend local (`scripts/dev-run.sh`) contra Postgres/Neon real, Voyage/Claude reais; livro
+*O Livro dos Espíritos* já ingerido (formato `numbered-item`) em sessão anterior. Perguntas rodadas
+via script (`POST /chat`, SSE) por fora do subagent `rag-evaluator` (mesmo padrão da avaliação real
+de `referencia-estruturada` T8) — transcrição bruta salva, análise de recall/groundedness feita
+manualmente contra `expected_sources`/`expected_answer_gist` do golden set.
+
+### CA2/CA1 (o bug desta feature): confirmado presente no "antes"
+Nas 29 respostas com fonte recuperada, **100% dos `sources[].reference` e `referenceType` vieram
+`null`** — nenhum item numerado sem linha em branco antes/depois ganhou fronteira de parágrafo
+própria, logo nenhum recebeu `reference`. Esse é exatamente o "antes" esperado para comparação em T7
+após T3 (fix do `Chunker`).
+
+### Recall: 29/33 corretos (por número de item citado na resposta vs `expected_sources.reference`)
+- 4 casos sem recall do item esperado:
+  - `espiritos-013` ("...pergunta 700...", frase literal sem reformulação) → `NoRelevantContext`.
+    Mesma limitação pré-existente de busca literal por número já documentada em
+    `$notaLivroDosEspiritos` (item 157, sessão de 2026-07-21) — **não é regressão desta feature**,
+    é candidato a exemplo real para a Frente 3 (busca exata por número, fora do escopo aqui).
+  - `espiritos-003`, `espiritos-017`, `espiritos-033` (perguntas semânticas): recuperaram itens de
+    faixa numérica diferente da esperada no golden set, mas tematicamente relacionados; sem
+    alucinação (texto citado é fiel ao chunk real recuperado). Pode ser recall real perdido pela
+    ausência de `reference` (busca híbrida sem sinal de item cai mais em similaridade pura) ou o
+    golden set apontar um item "canônico" quando o livro repete o tema em mais de uma resposta —
+    fica para julgamento em T7 se algum desses melhorar com `reference` correto.
+
+### Controles negativos: 4/4 corretos
+`espiritos-026`/`027`/`028`/`029` (sem cobertura no acervo) retornaram `NoRelevantContext` nos
+quatro casos, sem inventar conteúdo.
+
+### Groundedness
+Sem evidência de alucinação nos 29 casos com fonte — todo texto citado nas respostas corresponde ao
+conteúdo real dos chunks recuperados (spot-check manual, não uma métrica automatizada).
+
+### Próximo passo
+T3 corrige o `Chunker`; T7 reroda este mesmo golden set contra o mesmo backend (reingestão real) e
+compara ponto a ponto — critério CA6 é não regredir recall/groundedness do que está registrado aqui,
+com expectativa de que `reference` deixe de vir `null`.
