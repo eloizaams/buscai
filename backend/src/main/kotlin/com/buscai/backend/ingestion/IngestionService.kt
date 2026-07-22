@@ -94,14 +94,18 @@ class IngestionService(
      * Idempotência e bloqueio de reindexação implícita (ADR-0008, T8): antes de qualquer escrita
      * no banco, calcula [fileHash] e compara com a versão ATIVA do livro (não com qualquer
      * `BookVersion` que bata a chave de gatilho — uma versão órfã/antiga não deveria disparar
-     * skip). Se `(fileHash, embeddingModel, embeddingModelVersion)` da versão ativa bate com os
-     * valores atuais, devolve [IngestionOutcome.Skipped] sem reprocessar. Se não bate e [reindex]
-     * é `false`, devolve [IngestionOutcome.ReindexRequired] sem reprocessar (protege contra
-     * reprocessamento acidental caro, já que embeddings são API paga). Se [reindex] é `true`,
-     * segue para o pipeline normal (T7) criando uma nova `BookVersion`; só quando ela chega a
-     * `READY` é que o swap atômico (T9, ver [completeVersion]) troca `Book.activeVersionId` para a
-     * nova versão e remove a versão anterior e seus chunks — se a nova ingestão falhar em qualquer
-     * ponto do pipeline, a versão ativa anterior nunca é tocada (CA5/CA7, `spec.md`). Um `Book` sem
+     * skip). [reindex] sempre vence quando `true` (ADR-0008, nota 2026-07-22, CA8): a decisão de
+     * skip/bloqueio só é avaliada quando [reindex] é `false`. Nesse caso, se
+     * `(fileHash, embeddingModel, embeddingModelVersion)` da versão ativa bate com os valores
+     * atuais, devolve [IngestionOutcome.Skipped] sem reprocessar; se não bate, devolve
+     * [IngestionOutcome.ReindexRequired] sem reprocessar (protege contra reprocessamento
+     * acidental caro, já que embeddings são API paga). Quando [reindex] é `true`, segue direto
+     * para o pipeline normal (T7) criando uma nova `BookVersion` mesmo se a chave de gatilho for
+     * idêntica à versão ativa (ex.: forçar reprocessamento após mudança no `Chunker`); só quando
+     * ela chega a `READY` é que o swap atômico (T9, ver [completeVersion]) troca
+     * `Book.activeVersionId` para a nova versão e remove a versão anterior e seus chunks — se a
+     * nova ingestão falhar em qualquer ponto do pipeline, a versão ativa anterior nunca é tocada
+     * (CA5/CA7, `spec.md`). Um `Book` sem
      * versão ativa (nenhuma ingestão anterior chegou a `READY`) não é "já ingerido" — segue direto
      * para o pipeline normal.
      *
@@ -135,10 +139,14 @@ class IngestionService(
                     activeVersion.fileHash == fileHash &&
                         activeVersion.embeddingModel == voyageProperties.model &&
                         activeVersion.embeddingModelVersion == voyageProperties.modelVersion
-                if (sameTriggerKey) {
-                    return IngestionOutcome.Skipped(bookId, activeVersionId)
-                }
+                // `reindex` sempre vence: só decide skip/bloqueio quando a flag NÃO foi pedida
+                // (CA8, ADR-0008, nota 2026-07-22) — do contrário, mesmo com a chave de gatilho
+                // idêntica (mesmo arquivo, mesmo modelo), um operador que passou --reindex quer
+                // forçar reprocessamento (ex.: mudança no Chunker/ReferenceAnnotator).
                 if (!reindex) {
+                    if (sameTriggerKey) {
+                        return IngestionOutcome.Skipped(bookId, activeVersionId)
+                    }
                     return IngestionOutcome.ReindexRequired(bookId, activeVersionId)
                 }
             }
