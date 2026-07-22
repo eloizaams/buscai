@@ -20,13 +20,15 @@ Arquivo: `web/app.js`. Sem gate de `rag-evaluator` (não toca retrieval/generati
   cada `token`).
 - [x] Rótulo de referência: `CHAPTER` → "Capítulo N", `NUMBERED_ITEM` → "Pergunta N",
   `referenceType` nulo → sem rótulo, só o título do livro (nunca expor página, constitution §4).
-- [ ] Verificação manual (sem harness de teste em `web/`): `scripts/dev-run.sh` local + pergunta
-  real — checar CA1 (lista recolhida aparece), CA2 (expandir/recolher sobrevive ao streaming),
-  CA3 (pergunta sem contexto não mostra lista), CA4 (reabrir conversa antiga não quebra e não
-  mostra lista). **Não executada nesta sessão**: sandbox sem `DATABASE_URL`/`VOYAGE_API_KEY`/
-  `ANTHROPIC_API_KEY`/`BUSCAI_API_KEY` exportados nem acesso permitido a um `.env` na raiz do
-  repo (hook de segredos bloqueia leitura/checagem de `.env`) — fica pendente para quem tiver
-  esse ambiente disponível.
+- [x] Verificação manual (sem harness de teste em `web/`): `scripts/dev-run.sh` local + pergunta
+  real — CA1 (lista recolhida aparece), CA2 (expandir/recolher sobrevive ao streaming), CA3
+  (pergunta sem contexto não mostra lista), CA4 (reabrir conversa antiga não quebra e não mostra
+  lista) — todos confirmados em 2026-07-22, contra o Postgres/Voyage/Anthropic reais do `.env`.
+  Achado da sessão: o navegador manteve `app.js` em cache mesmo após reiniciar o backend e dar
+  reload normal — só uma URL de script nunca antes vista (`?cachebust=`) forçou o carregamento da
+  versão nova. Sem isso, a lista parecia "não funcionar" quando na verdade o código já estava
+  correto. Ver nota de follow-up em `docs/cache-static-assets.md` sobre endurecer isso para
+  produção (fora do escopo desta spec).
 
 ## T2 — Título obrigatório na ingestão + correção do dado em produção (R2)
 
