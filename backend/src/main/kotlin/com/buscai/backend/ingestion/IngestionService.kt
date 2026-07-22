@@ -175,6 +175,23 @@ class IngestionService(
 
             val drafts = extractCleanAndChunk(file, pageCount, referenceType, contentPages)
 
+            // Guard contra BookVersion READY com zero chunks (lacuna preexistente, já mencionada
+            // no KDoc de extractCleanAndChunk para PDF escaneado — mas --content-pages, T2, torna
+            // esse caminho mais fácil de acionar: um intervalo apontando só para páginas de
+            // rosto/contracapa tem texto real o bastante para não disparar ScannedPdfDetector, mas
+            // insuficiente para o Chunker produzir qualquer chunk). Sem este guard,
+            // chunkValidator.validate aprovaria drafts vazio de forma vácua e completeVersion
+            // marcaria a versão como READY com chunkCount=0, sem nenhum erro para o operador.
+            if (drafts.isEmpty()) {
+                return fail(
+                    bookId,
+                    versionId,
+                    "Nenhum trecho de conteúdo foi gerado a partir do intervalo de páginas " +
+                        "processado — revise --content-pages (ou o PDF, se sem --content-pages) e " +
+                        "tente novamente.",
+                )
+            }
+
             when (val validation = chunkValidator.validate(drafts, referenceType)) {
                 is ChunkValidationResult.Invalid ->
                     return fail(bookId, versionId, validation.violations.joinToString("; "))
