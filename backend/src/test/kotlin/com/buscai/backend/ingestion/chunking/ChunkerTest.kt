@@ -382,4 +382,48 @@ class ChunkerTest {
             "checagem de overlap precisa ser pulada para NUMBERED_ITEM (ADR-0013/ADR-0008): $validationResult"
         }
     }
+
+    @Test
+    fun `chunk with NUMBERED_ITEM never prefixes overlap text from the previous chunk's items`() {
+        // R4: overlap deixa de ser aplicado quando referenceType == NUMBERED_ITEM — a fronteira
+        // entre chunks desse estilo é sempre uma fronteira deliberada de item, então prefixar
+        // conteúdo do chunk anterior contaminaria `text` com itens fora da faixa de `reference`.
+        // Itens de 130 tokens cada (número + 129 palavras): 5 cabem em MAX_OWN_CONTENT_TOKENS (695,
+        // 5*130=650), o 6º estouraria (780), então items 155-159 fecham o primeiro grupo e
+        // 160-164 fecham o segundo — cada item com palavras sequenciais e não sobrepostas, para
+        // conseguir checar diretamente que nenhum token do primeiro grupo vaza para o segundo.
+        var cursor = 1
+        val items =
+            (155..164).map { number ->
+                val body = cursor..(cursor + 128)
+                cursor += 129
+                item(number, body)
+            }
+        val pageText = items.joinToString("\n") // sem linha em branco, igual ao PDF real
+        val pageTexts = mapOf(1 to pageText)
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(2, chunks.size)
+        assertEquals("155–159", chunks[0].reference)
+        assertEquals("160–164", chunks[1].reference)
+
+        assertEquals(items.subList(0, 5).joinToString("\n\n"), chunks[0].text)
+
+        // Segundo chunk começa exatamente na abertura do primeiro item da própria faixa (160), sem
+        // nenhum prefixo de overlap herdado do chunk anterior.
+        assertTrue(chunks[1].text.startsWith("160. ")) {
+            "chunk sem overlap deve começar exatamente na abertura do item que abre sua faixa: " +
+                chunks[1].text.take(50)
+        }
+        assertEquals(items.subList(5, 10).joinToString("\n\n"), chunks[1].text)
+
+        // Nenhum token dos itens 155-159 (faixa do chunk anterior) vaza para o texto do chunk 2.
+        for (previousItem in items.subList(0, 5)) {
+            assertTrue(previousItem !in chunks[1].text) {
+                "chunk 2 (faixa 160–164) não pode conter texto do item anterior: $previousItem"
+            }
+        }
+        assertTrue("159." !in chunks[1].text)
+    }
 }

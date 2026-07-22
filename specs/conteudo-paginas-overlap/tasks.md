@@ -25,18 +25,18 @@ Em `backend/src/main/kotlin/com/buscai/backend/ingestion/cli/IngestCommand.kt`:
 
 Em `backend/src/main/kotlin/com/buscai/backend/ingestion/IngestionService.kt`:
 
-- [ ] `ingest(...)` ganha parâmetro `contentPages: IntRange? = null`.
-- [ ] Validação após `pdfTextExtractor.pageCount(file)`: `contentPages.last > pageCount` →
+- [x] `ingest(...)` ganha parâmetro `contentPages: IntRange? = null`.
+- [x] Validação após `pdfTextExtractor.pageCount(file)`: `contentPages.last > pageCount` →
       `IngestionOutcome.Failed` com razão descritiva, antes de criar `BookVersion` (não deixar o
       `require` de `PdfTextExtractor.extractRange` estourar exceção crua).
-- [ ] `extractCleanAndChunk`: restringir o laço de lotes ao intervalo (início/teto do loop),
+- [x] `extractCleanAndChunk`: restringir o laço de lotes ao intervalo (início/teto do loop),
       em vez de extrair tudo e filtrar depois. KDoc: detecção de PDF escaneado (ADR-0008) passa
       a ser medida só sobre as páginas do intervalo — deliberado.
-- [ ] Log INFO com páginas incluídas vs. total quando o intervalo é aplicado.
-- [ ] `IngestionOutcomeFormatter`: mensagem de `Skipped` passa a orientar `--reindex`
+- [x] Log INFO com páginas incluídas vs. total quando o intervalo é aplicado.
+- [x] `IngestionOutcomeFormatter`: mensagem de `Skipped` passa a orientar `--reindex`
       ("... Use --reindex para reprocessar (ex.: para aplicar outro --content-pages)."), com
       teste de formatação atualizado.
-- [ ] Testes em `IngestionServiceTest` (Testcontainers, `PdfFixtures`): intervalo parcial gera
+- [x] Testes em `IngestionServiceTest` (Testcontainers, `PdfFixtures`): intervalo parcial gera
       chunks só das páginas do intervalo; `fim > total` → `Failed`; sem intervalo → comportamento
       atual intacto (retrocompat).
 
@@ -47,15 +47,15 @@ Em `backend/src/main/kotlin/com/buscai/backend/ingestion/IngestionService.kt`:
 Em `backend/src/main/kotlin/com/buscai/backend/ingestion/chunking/Chunker.kt` (laço de montagem,
 ~linhas 160–178):
 
-- [ ] `overlapText` vira `null` quando `referenceType == ReferenceType.NUMBERED_ITEM`; demais
+- [x] `overlapText` vira `null` quando `referenceType == ReferenceType.NUMBERED_ITEM`; demais
       estilos inalterados.
-- [ ] KDoc da classe atualizado (hoje descreve overlap como universal): overlap condicional;
+- [x] KDoc da classe atualizado (hoje descreve overlap como universal): overlap condicional;
       `MAX_OWN_CONTENT_TOKENS` (695) deliberadamente inalterado (teto efetivo ~695 para
       `NUMBERED_ITEM`, calibração fica para R7).
-- [ ] Teste novo em `ChunkerTest`: itens numerados curtos que produzam ≥ 2 chunks — o segundo
+- [x] Teste novo em `ChunkerTest`: itens numerados curtos que produzam ≥ 2 chunks — o segundo
       chunk **começa exatamente** na abertura do primeiro item da sua faixa (`text.startsWith`)
       e não contém texto de itens da faixa anterior; `reference` confere com o conteúdo.
-- [ ] Testes existentes de overlap (prosa/`CHAPTER`) continuam passando sem alteração.
+- [x] Testes existentes de overlap (prosa/`CHAPTER`) continuam passando sem alteração.
 
 **Pronto quando:** `./gradlew ktlintFormat test --tests "com.buscai.backend.ingestion.chunking.*"`
 verde (e depois a suíte toda em T4). **Responsável:** kotlin-implementer.

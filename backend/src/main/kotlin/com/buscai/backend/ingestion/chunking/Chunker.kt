@@ -92,9 +92,10 @@ internal data class ParagraphUnit(
 
 /**
  * Agrupa o texto já limpo ([TextCleaner]) de um lote de páginas em chunks de [MIN_CHUNK_TOKENS]-
- * [MAX_CHUNK_TOKENS] tokens, com overlap de [OVERLAP_MIN_RATIO]-[OVERLAP_MAX_RATIO] entre
- * vizinhos, sem cortar um parágrafo ao meio quando evitável (ADR-0002). Ver [countTokens] para a
- * definição de "token" usada.
+ * [MAX_CHUNK_TOKENS] tokens, sem cortar um parágrafo ao meio quando evitável (ADR-0002). Overlap
+ * de [OVERLAP_MIN_RATIO]-[OVERLAP_MAX_RATIO] entre vizinhos é aplicado apenas quando `referenceType`
+ * é `null`/[ReferenceType.CHAPTER] — [ReferenceType.NUMBERED_ITEM] não recebe overlap no texto (ver
+ * item 4 da estratégia abaixo). Ver [countTokens] para a definição de "token" usada.
  *
  * Estratégia (decisão de design central desta task, documentada aqui):
  * 1. O texto de cada página é dividido em parágrafos por linha em branco (mesma convenção que
@@ -119,11 +120,22 @@ internal data class ParagraphUnit(
  *    [MAX_OWN_CONTENT_TOKENS] — o restante volta para compor o próximo grupo (ver
  *    [groupUnits]/[cutParagraphAt]). Sem essa exceção, um parágrafo curto seguido de um grande
  *    fecharia o grupo abaixo do mínimo em qualquer ponto do livro, não só no fim.
- * 4. A partir do segundo chunk, cada um recebe um prefixo de overlap: os últimos tokens do
- *    conteúdo PRÓPRIO do chunk anterior (~[OVERLAP_TARGET_RATIO] dele), copiados literalmente. O
- *    overlap não respeita fronteira de parágrafo — é sempre cortado em fronteira de token — porque
- *    é conteúdo duplicado só para dar contexto de continuidade, não conteúdo original perdido (o
- *    parágrafo completo continua íntegro, sem corte, no chunk anterior).
+ * 4. Overlap é condicional a `referenceType` (não mais universal). Para `null`/[ReferenceType.CHAPTER],
+ *    a partir do segundo chunk cada um recebe um prefixo de overlap: os últimos tokens do conteúdo
+ *    PRÓPRIO do chunk anterior (~[OVERLAP_TARGET_RATIO] dele), copiados literalmente. O overlap não
+ *    respeita fronteira de parágrafo — é sempre cortado em fronteira de token — porque é conteúdo
+ *    duplicado só para dar contexto de continuidade em cortes arbitrários de parágrafo, não
+ *    conteúdo original perdido (o parágrafo completo continua íntegro, sem corte, no chunk
+ *    anterior). Para [ReferenceType.NUMBERED_ITEM] **nenhum overlap é prefixado**: a fronteira
+ *    entre chunks desse estilo é sempre uma fronteira deliberada de item (nunca um corte arbitrário
+ *    no meio de conteúdo, ver [coalesceItemContinuations]/[groupUnits]), então o overlap não serve a
+ *    nenhum propósito ali — e prefixá-lo mesmo assim contaminaria `text` com conteúdo de itens fora
+ *    da faixa declarada em `reference` (ADR-0013), quebrando a correspondência texto↔referência.
+ *    Consequência aceita: [MAX_OWN_CONTENT_TOKENS] (~695, dimensionado para deixar folga de overlap
+ *    dentro do teto de [MAX_CHUNK_TOKENS]) permanece **deliberadamente inalterado**, então chunks
+ *    `NUMBERED_ITEM` passam a ter teto efetivo menor (~695 em vez de ~800), já que não há mais
+ *    overlap consumindo esse espaço; recalibrar o teto por estilo é tuning sem evidência empírica
+ *    ainda e fica fora do escopo desta nota (trabalho futuro).
  * 5. `page`/`charOffset` do chunk final sempre refletem onde o conteúdo PRÓPRIO do chunk começa
  *    (ignorando o prefixo de overlap herdado, que pode vir de uma página anterior do mesmo lote)
  *    — é o ponto mais útil para uma citação (livro + página, CA1).
@@ -162,7 +174,12 @@ class Chunker {
         for (group in groups) {
             val ownText = group.joinToString("\n\n") { it.text }
             val ownTokenCount = group.sumOf { it.tokenCount }
-            val overlapText = previousOwnText?.let { lastTokensSubstring(it, overlapTargetTokens(previousOwnTokenCount)) }
+            val overlapText =
+                if (referenceType == ReferenceType.NUMBERED_ITEM) {
+                    null
+                } else {
+                    previousOwnText?.let { lastTokensSubstring(it, overlapTargetTokens(previousOwnTokenCount)) }
+                }
             val fullText = if (overlapText.isNullOrEmpty()) ownText else "$overlapText\n\n$ownText"
             val first = group.first()
             drafts +=
