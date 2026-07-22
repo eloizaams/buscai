@@ -123,6 +123,19 @@ class ChunkValidatorTest {
     }
 
     @Test
+    fun `validate skips the overlap check only when referenceType is NUMBERED_ITEM`() {
+        // Mesmo par de chunks do teste "overlap abaixo do mínimo" acima — violaria para
+        // CHAPTER/null, mas para NUMBERED_ITEM a checagem de overlap é pulada inteiramente
+        // (ver KDoc da classe).
+        val previousText = words(1..700)
+        val nextText = "${words(691..700)}\n\n${words(701..1000)}"
+
+        val result = validator.validate(listOf(draft(previousText), draft(nextText)), ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(ChunkValidationResult.Valid, result)
+    }
+
+    @Test
     fun `validate still rejects a chunk above the maximum token count when referenceType is NUMBERED_ITEM`() {
         val tooLong = draft(words(1..900)) // 900 tokens, acima de MAX_CHUNK_TOKENS (800)
 
