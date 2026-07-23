@@ -10,7 +10,7 @@ commit por task. Ao final da última: `/pr`.
   valores, nunca re-parse do rótulo "N–M"). `CHAPTER`/estilo ausente → nulos. Testes unit:
   item único, grupo em faixa, preâmbulo sem referência, capítulo.
 
-- [ ] **T2 — Migration V5 + entidade + persistência**
+- [x] **T2 — Migration V5 + entidade + persistência**
   `V5__chunk_item_range.sql` (colunas, backfill parseando `reference` com en-dash U+2013,
   defesa parse-falhou/`start > end` → NULL, índice parcial, CHECK) conforme `plan.md`; `Chunk`
   (entidade) ganha os campos; `IngestionService` propaga do draft. Teste de integração

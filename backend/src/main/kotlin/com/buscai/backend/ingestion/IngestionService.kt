@@ -378,6 +378,11 @@ class IngestionService(
                             // referenceType, sem checar reference) monta "item: null"/"capítulo: null"
                             // no prompt, e o mesmo par quebrado vaza para o cliente via SourceItem.
                             referenceType = if (draft.reference != null) referenceType else null,
+                            // itemStart/itemEnd (busca-exata-item, migration V5): cópia direta do
+                            // draft, sem condicional — Chunker.groupReference já devolve null nos
+                            // casos em que não se aplica (CHAPTER, sem referenceType, preâmbulo).
+                            itemStart = draft.itemStart,
+                            itemEnd = draft.itemEnd,
                         )
                     }
                 chunkRepository.saveAll(chunks)

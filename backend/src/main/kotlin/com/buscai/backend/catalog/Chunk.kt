@@ -21,7 +21,9 @@ const val EMBEDDING_DIMENSIONS = 1024
  * nativo a `vector` do pgvector via `hibernate-vector` (Hibernate 6.4+, aqui 7.4.1.Final — ver
  * comentário em `build.gradle.kts`), não a classe `com.pgvector.PGvector` diretamente. [reference]/
  * [referenceType] (ADR-0013) substituem o antigo `chapter` (migration V4) — preenchidos só quando a
- * ingestão declara `--reference-style`; `null`/`null` para livros ingeridos sem a flag.
+ * ingestão declara `--reference-style`; `null`/`null` para livros ingeridos sem a flag. [itemStart]/
+ * [itemEnd] (busca-exata-item, migration V5) são a mesma faixa de [reference] já derivada em
+ * inteiro, preenchidos só para `referenceType == NUMBERED_ITEM`.
  */
 @Entity
 @Table(name = "chunk")
@@ -48,6 +50,10 @@ class Chunk(
     @Enumerated(EnumType.STRING)
     @Column(name = "reference_type")
     var referenceType: ReferenceType? = null,
+    @Column(name = "item_start")
+    var itemStart: Int? = null,
+    @Column(name = "item_end")
+    var itemEnd: Int? = null,
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 )
