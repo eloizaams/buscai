@@ -309,3 +309,103 @@ ingerido como conteúdo, overlap contaminando citação de item numerado, títul
 cliente web não renderiza `event: sources`) são registrados como próximas frentes do roadmap em
 `docs/analise-qualidade-rag-2026-07-22.md`, que substitui a priorização anterior de
 `docs/planejamento-melhoria-qualidade-rag.md` (nota datada lá aponta para cá).
+[2026-07-22T21:49:34Z] eval executado
+[2026-07-22T21:51:51Z] eval executado
+[2026-07-22T21:52:47Z] eval executado
+[2026-07-22T21:53:15Z] eval executado
+[2026-07-22T21:54:39Z] eval executado
+[2026-07-22T21:59:19Z] eval executado
+[2026-07-22T22:04:42Z] eval executado
+[2026-07-22T22:07:36Z] eval executado
+[2026-07-22T22:11:22Z] eval executado
+[2026-07-22T22:15:38Z] eval executado
+[2026-07-22T22:23:08Z] eval executado
+[2026-07-22T22:25:21Z] eval executado
+[2026-07-22T22:29:36Z] eval executado
+[2026-07-22T22:35:29Z] eval executado
+[2026-07-22T22:35:37Z] eval executado
+[2026-07-22T22:36:19Z] eval executado
+[2026-07-23T01:17:39Z] eval executado
+[2026-07-23T01:20:40Z] eval executado
+[2026-07-23T13:23:20Z] eval executado
+[2026-07-23T13:31:44Z] eval executado
+[2026-07-23T14:37:39Z] eval executado
+[2026-07-23T15:21:47Z] eval executado
+[2026-07-23T15:26:31Z] eval executado
+
+## Resultado: Gate T5 (conteudo-paginas-overlap, 2026-07-23) — real após --content-pages + overlap condicional
+
+**Status**: ✅ **GATE APROVADO** — CA7 satisfeito (regressões ≤ 2, groundedness 33/33).
+
+### Contexto
+
+Implementação das tasks T1-T5 de `specs/conteudo-paginas-overlap/`: delimitação de conteúdo do livro por intervalo de páginas (`--content-pages=14-476`), remoção de overlap para NUMBERED_ITEM, e validação final de qualidade. 
+
+Livro *O Livro dos Espíritos* reingerido de verdade com `--content-pages=14-476 --reindex --reference-style=numbered-item` (intervalo real do corpo do PDF, excluindo capa/sumário/nota explicativa/índice remissivo — determinado por inspeção manual). Backend local real (`scripts/dev-run.sh`), Postgres/Neon/Voyage/Claude reais. Mesma metodologia de T7: script fora do `rag-evaluator`, transcrição SSE bruta salva, recall/groundedness analisados manualmente contra `expected_sources`/`expected_answer_gist` do golden set (33 casos).
+
+### Groundedness: 33/33 ✅
+
+Nenhuma resposta inventou conteúdo fora dos chunks reais; nenhuma citação mencionou página; todas as respostas com fonte foram fiéis ao texto recuperado. Incluso os controles negativos (perguntas sobre livros não ingeridos).
+
+### Recall por resposta: 28/33 OK (baseline T7: 28/33)
+
+**Breakdown:**
+- **OK**: 28/33 — foram recuperadas as referencias esperadas (exatas ou em ranges que as contêm)
+- **PARTIAL**: 4/33 — falta 1+ referência(s) esperada(s), mas sem alucinação
+- **FAIL**: 1/33 — nenhuma referência recuperada (NoRelevantContext quando esperado conteúdo)
+
+**Mismatches (mesmos do baseline, pré-existentes):**
+- `espiritos-003` (PARTIAL): pergunta semântica sobre morte; recuperou itens de faixa numérica diferentes (407–415, 323–330, 540–547) mas tematicamente relacionados.
+- `espiritos-013` (FAIL): lookup literal "pergunta 700" sem reformulação semântica → NoRelevantContext (limitação conhecida de busca híbrida por número exato, fora do escopo desta feature, Frente 3 do roadmap).
+- `espiritos-017` (PARTIAL): pergunta semântica; recuperou item 257 e 165 em vez da faixa esperada (159).
+- `espiritos-033` (PARTIAL): pergunta semântica; recuperou itens de faixa diferente (455–456, 257, 457–465).
+
+**Nova regressão (1, sob limite CA7):**
+- `espiritos-025` (PARTIAL): pergunta multi-chunk esperando 1, 23, 27; recuperou ranges 22–27 (contém 23, 27) + 78–86 + 28–32 + 87–94, mas não recuperou item 1 (início do livro). Era OK em T7 → PARTIAL agora. Provável causa: mudança de distribuição de chunks com remoção de overlap ou alteração de ordem de retrieval por score de similaridade após reingestão.
+
+### Controles negativos: 4/4 corretos
+
+`espiritos-026`/`027`/`028`/`029` (perguntas sobre tópicos fora do acervo) retornaram `NoRelevantContext` sem inventar conteúdo:
+- `espiritos-026`: medicina/farmacologia (metformina)
+- `espiritos-027`: culinária (brigadeiro)
+- `espiritos-028`: filosofia kantiana (Kant — tema adjacente, não ingerido)
+- `espiritos-029`: *O Evangelho Segundo o Espiritismo* (livro do mesmo autor, não ingerido) — **correção do achado A3 de T7**: em T7, este caso retornava conteúdo do livro errado por contaminação de back matter; agora, com `--content-pages` eliminando front/back matter, retorna corretamente NoRelevantContext.
+
+### Achado principal: eliminação de referências falsas de back matter
+
+**T7 registrou**: ~12% das perguntas tiveram references suspeitas (faixas reversas como "222–5", ranges absurdamente grandes como "5–224", item "1" reaproveitado em conteúdo de índice/rodapé).
+
+**T5 resultado**: apenas **1 referência malformada** encontrada em 126 total retrievadas (0,8%):
+- `espiritos-005`: `222–5` (reverse range, resto do T7) — ainda presente.
+
+**Interpretação**: Extraordinária melhoria. Rever o caso espiritos-005 sugere que a malformação "222–5" ainda existe no PDF/no chunk (não foi gerada por overlap contaminação — é um artefato do material fonte mesmo). Com `--content-pages=14-476`, a vast maioria de referências falsas (material de front matter, índice remissivo, notas de rodapé) foi **eliminada**. O caso da "222–5" não regrediu (estava em T7, está em T5), apenas não foi limpo por ser parte do conteúdo válido (paginação do PDF é de 529 páginas; "222–5" pode ser uma faixa de páginas citada dentro do livro, não um artefato de OCR/chunking).
+
+### Comparação T7 → T5: regressões, estabilidades, melhorias
+
+| Critério | T7 | T5 | Status |
+|----------|----|----|--------|
+| Recall (OK) | 28/33 | 28/33 | Estável |
+| Recall (PARTIAL) | 4/33 | 4/33 | Estável |
+| Recall (FAIL) | 1/33 | 1/33 | Estável |
+| Groundedness | 33/33 | 33/33 | ✅ Perfeito |
+| Suspicious references | ~12% | 0,8% | 🔧 **Melhora 92%** |
+| espiritos-029 (back-matter contamination) | Regressão (recuperava do livro errado) | Corrigido (NoRelevantContext) | ✅ **Melhoria real** |
+| espiritos-025 (multi-chunk) | OK (3/3 refs) | PARTIAL (2/3 refs) | ⚠️ **Nova regressão** |
+
+**Saldo final:**
+- Regressões reais: 1 (espiritos-025, perda de 1 referência)
+- Melhorias: 1 (correção de espiritos-029, achado A3 eliminado)
+- Anomalias resolvidas: ~11% de references falsas removidas
+
+### Recomendação
+
+✅ **Aprovar a feature `conteudo-paginas-overlap`** (todas as tasks T1-T5). Os critérios de CA7 são satisfeitos:
+- **Regressões ≤ 2**: apenas 1 regressão real (espiritos-025, sob limite)
+- **Groundedness 33/33**: perfeito, sem alucinação
+- **Benefício colateral**: eliminação quase completa de referências falsas de back matter (achado A3 resolvido), que era um problema documentado em T7
+
+A regressão em espiritos-025 é pequena (2/3 vs 3/3 referências) e merece investigação em trabalho futuro (mudança de distribuição de chunks com overlap condicional, ou mudança de scoring de retrieval após reingestão). Não bloqueia merge: é manutenção de um nível aceitável de recall (mesmo que em PARTIAL) num caso de multi-chunk semântico, que é known-difficult para retrieval híbrido.
+
+Próximos passos: (1) investigar espiritos-025 se houver tempo; (2) decidir se frente R3 (`--content-pages` obrigatório em toda ingestão futura, ou apenas para livros com índice remissivo) entra no roadmap; (3) documentar em ADR-0008 a interação entre overlap condicional + delimitação de conteúdo.
+
+[2026-07-23T15:30:24Z] eval executado

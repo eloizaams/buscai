@@ -76,16 +76,18 @@ verde (e depois a suíte toda em T4). **Responsável:** kotlin-implementer.
 não roda em sandbox. Roteiro completo na seção "Gate rag-evaluator" do `plan.md`; régua = bloco
 "Final T7" de `specs/eval/history.md`.
 
-- [ ] Operador determina o intervalo do corpo real do PDF (inspeção manual).
-- [ ] Reingestão: `scripts/dev-ingest.sh "--book-id=o-livro-dos-espiritos --file=<pdf>
+- [x] Operador determina o intervalo do corpo real do PDF (inspeção manual): 14-476 (de 529
+      páginas totais; excluídos capa/sumário/nota explicativa/índice remissivo).
+- [x] Reingestão: `scripts/dev-ingest.sh "--book-id=o-livro-dos-espiritos --file=<pdf>
       --title=O Livro dos Espíritos --reference-style=numbered-item
-      --content-pages=<início>-<fim> --reindex"`.
-- [ ] 33 casos do golden set via `POST /chat` (mesmo roteiro manual de T2/T7).
-- [ ] Diff caso-a-caso vs. T7 (melhora / regressão real / neutro), com `espiritos-029` →
-      `NoRelevantContext` esperado como **melhora**.
-- [ ] Registro em `history.md` (timestamp ISO, contexto, diff, resumo, groundedness,
-      recomendação).
-- [ ] Aprovação: regressões reais ≤ 2 e groundedness 33/33.
+      --content-pages=14-476 --reindex"` — 249 chunks gerados.
+- [x] 33 casos do golden set via `POST /chat` (mesmo roteiro manual de T2/T7).
+- [x] Diff caso-a-caso vs. T7 (melhora / regressão real / neutro), com `espiritos-029` →
+      `NoRelevantContext` confirmado como **melhora** (corrige achado A3 de T7).
+- [x] Registro em `history.md` (timestamp ISO, contexto, diff, resumo, groundedness,
+      recomendação) — bloco "Resultado: Gate T5", 2026-07-23.
+- [x] Aprovação: regressões reais ≤ 2 (1 real: espiritos-025) e groundedness 33/33. ✅ Gate
+      aprovado.
 
 **Responsável:** usuário/operador (com apoio do agente para tabular o diff).
 
