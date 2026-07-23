@@ -16,7 +16,7 @@ commit por task. Ao final da última: `/pr`.
   (entidade) ganha os campos; `IngestionService` propaga do draft. Teste de integração
   (Testcontainers) cobrindo o backfill: "25", "160–164", lixo ("222–5", não numérico) → NULL.
 
-- [ ] **T3 — `ItemLookupDetector` (RF1)**
+- [x] **T3 — `ItemLookupDetector` (RF1)**
   Componente puro em `retrieval`; regex de marcadores pt-BR (léxico do `plan.md`), cap
   `RetrievalProperties.maxExactItemNumbers` (novo, default 3). Testes unit com os falsos
   positivos obrigatórios do CA4 ("1857", "os 10 mandamentos", "salmo 23", "capítulo 25") e

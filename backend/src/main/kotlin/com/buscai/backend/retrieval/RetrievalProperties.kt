@@ -27,4 +27,5 @@ data class RetrievalProperties(
     val tokenBudget: Int = 3000,
     val minCosineSimilarity: Double = 0.5,
     val neighborDedupMinOverlapChars: Int = 75,
+    val maxExactItemNumbers: Int = 3,
 )
