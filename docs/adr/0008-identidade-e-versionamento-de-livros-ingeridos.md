@@ -25,6 +25,17 @@ Aceito — 2026-07-12
 > quando o corte de parágrafo é arbitrário, premissa que não se aplica quando o corte é sempre uma
 > fronteira de item deliberada). Ver `specs/limite-item-numerado/plan.md`.
 
+> **Nota (2026-07-22, `specs/conteudo-paginas-overlap/`, `--content-pages` fora da chave de
+> gatilho):** `--content-pages` (intervalo de páginas de conteúdo real, novo nesta spec) **não
+> entra** na chave de gatilho skip/reindex `(bookId, hashDoArquivo, versãoDoModeloDeEmbedding)`
+> decidida acima — o hash do arquivo não muda quando só o intervalo declarado muda. Consequência:
+> reingerir o mesmo arquivo com um `--content-pages` diferente, sem `--reindex`, cai no
+> comportamento de skip já decidido acima (mesma chave = pula). A mensagem de skip
+> (`IngestionOutcomeFormatter`, implementado em T2) agora orienta explicitamente o uso de
+> `--reindex` para reprocessar, inclusive para aplicar um intervalo de páginas diferente. Nenhuma
+> mudança na chave de gatilho em si; é só um esclarecimento de como `--content-pages` interage com
+> ela.
+
 ## Contexto
 Ao especificar a feature de ingestão (`specs/ingestao-pdf/spec.md`), o `android-architect` apontou
 que o [ADR-0002](0002-ingestao-fora-do-app.md) decidiu usar hash SHA-256 do arquivo para

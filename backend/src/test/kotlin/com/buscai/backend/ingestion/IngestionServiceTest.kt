@@ -332,6 +332,132 @@ class IngestionServiceTest {
     }
 
     /**
+     * T2 (`specs/conteudo-paginas-overlap/plan.md`): `contentPages` restringe a extração ao
+     * intervalo informado — os chunks persistidos só vêm de páginas dentro dele, front/back matter
+     * (aqui, páginas 1-2 e 8-9 do fixture de 9 páginas) nunca é extraído/chunkado. `pageCount`
+     * reportado no outcome continua sendo o total do documento — `--content-pages` não altera isso,
+     * só delimita o que vira chunk.
+     */
+    @Test
+    fun `content-pages restringe a extracao ao intervalo, chunks so vem das paginas do intervalo`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-content-pages-t2",
+                title = "Livro Content Pages T2",
+                file = file,
+                contentPages = 3..7,
+            )
+
+        val completed = outcome as? IngestionOutcome.Completed
+        assertNotNull(completed, "esperava IngestionOutcome.Completed, obteve: $outcome")
+        checkNotNull(completed)
+        assertEquals(PAGE_COUNT, completed.pageCount)
+
+        val chunks = chunkRepository.findAll().filter { it.bookVersionId == completed.versionId }
+        assertTrue(chunks.isNotEmpty(), "esperava pelo menos 1 chunk")
+        chunks.forEach { chunk ->
+            assertTrue(chunk.page in 3..7, "chunk fora do intervalo --content-pages: page=${chunk.page}")
+        }
+    }
+
+    /**
+     * T2 (`specs/conteudo-paginas-overlap/plan.md`): `contentPages.last` maior que o total de
+     * páginas do documento falha a ingestão com uma razão descritiva, ANTES de criar a
+     * `BookVersion` — não deixa o `require` de `PdfTextExtractor.extractRange` estourar uma
+     * exceção crua no meio do pipeline.
+     */
+    @Test
+    fun `content-pages com fim maior que o total de paginas falha a ingestao com mensagem descritiva, sem BookVersion orfa`() {
+        val file = PdfFixtures.textPdf(tempDir, fixtureBookPageTexts())
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-content-pages-excede-t2",
+                title = "Livro Content Pages Excede T2",
+                file = file,
+                contentPages = 3..(PAGE_COUNT + 5),
+            )
+
+        val failed = outcome as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $outcome")
+        checkNotNull(failed)
+        assertTrue(
+            failed.reason.contains("content-pages"),
+            "mensagem deveria mencionar --content-pages: ${failed.reason}",
+        )
+        assertTrue(
+            failed.reason.contains(PAGE_COUNT.toString()),
+            "mensagem deveria mencionar o total de páginas do documento: ${failed.reason}",
+        )
+        assertEquals(null, failed.versionId, "falha antes de startVersion — não deveria existir BookVersion")
+        assertTrue(
+            fakeEmbeddingClient.calls.isEmpty(),
+            "não deveria chamar o EmbeddingClient quando --content-pages excede o total de páginas",
+        )
+    }
+
+    /**
+     * Correção pontual apontada pelo `code-reviewer` na spec `conteudo-paginas-overlap`: um
+     * intervalo `--content-pages` cujas páginas têm texto real o bastante para não disparar
+     * [com.buscai.backend.ingestion.pdf.ScannedPdfDetector] (linha única repetida, acima do piso de
+     * 20 caracteres úteis), mas idêntico em todas as páginas do intervalo — [TextCleaner] remove essa
+     * linha por ser ao mesmo tempo header e footer repetido (ver
+     * `TextCleaner.removeRepeatedHeaderFooterLines`), deixando `cleanedPages` vazio para o
+     * `Chunker`, que então não produz nenhum `ChunkDraft`. Sem o guard, `chunkValidator.validate`
+     * aprovaria a lista vazia de forma vácua e `completeVersion` marcaria a versão como `READY` com
+     * `chunkCount=0`. Diferente do teste acima (`contentPages.last > pageCount`), aqui a falha
+     * acontece DEPOIS de `startVersion` (o intervalo em si é válido) — por isso a `BookVersion`
+     * já existe e precisa ficar `FAILED`, não presa em `INGESTING`.
+     */
+    @Test
+    fun `content-pages que resulta em zero chunks falha a ingestao com mensagem orientando a revisar o intervalo`() {
+        // Linha repetida em todas as páginas do intervalo 2-4: tem caracteres úteis o bastante para
+        // não ser tratada como "página sem texto" pelo ScannedPdfDetector, mas é removida pelo
+        // TextCleaner por se repetir como header/footer em 100% das páginas do lote — o Chunker não
+        // tem nenhum parágrafo restante para formar um chunk.
+        val repeatedLine = "RepeteEmTodasAsPaginasDoIntervalo"
+        val pageTexts =
+            listOf(
+                "Pagina um capa do livro com texto normal aqui.",
+                repeatedLine,
+                repeatedLine,
+                repeatedLine,
+                "Pagina cinco contracapa do livro com texto normal aqui.",
+            )
+        val file = PdfFixtures.textPdf(tempDir, pageTexts)
+
+        val outcome =
+            ingestionService.ingest(
+                bookId = "livro-content-pages-zero-chunks",
+                title = "Livro Content Pages Zero Chunks",
+                file = file,
+                contentPages = 2..4,
+            )
+
+        val failed = outcome as? IngestionOutcome.Failed
+        assertNotNull(failed, "esperava IngestionOutcome.Failed, obteve: $outcome")
+        checkNotNull(failed)
+        assertTrue(
+            failed.reason.contains("--content-pages"),
+            "mensagem deveria orientar a revisar --content-pages: ${failed.reason}",
+        )
+        assertNotNull(
+            failed.versionId,
+            "esperava um versionId não nulo — a BookVersion já existia (intervalo válido) quando a falha ocorreu",
+        )
+
+        val version = bookVersionRepository.findById(checkNotNull(failed.versionId)).orElseThrow()
+        assertEquals(BookVersionStatus.FAILED, version.status, "a BookVersion não deveria ficar presa em INGESTING")
+
+        assertTrue(
+            fakeEmbeddingClient.calls.isEmpty(),
+            "não deveria chamar o EmbeddingClient quando nenhum chunk é gerado",
+        )
+    }
+
+    /**
      * ADR-0013 (`specs/referencia-estruturada/tasks.md`, T2): ingerir com `referenceType =
      * NUMBERED_ITEM` persiste `Chunk.reference`/`referenceType` corretos e confirma que o
      * `ChunkValidator` não rejeita um chunk abaixo de `MIN_CHUNK_TOKENS` quando um item numerado

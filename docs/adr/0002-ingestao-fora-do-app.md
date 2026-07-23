@@ -3,6 +3,19 @@
 ## Status
 Aceito — 2026-07-12
 
+> **Nota (2026-07-22, `specs/conteudo-paginas-overlap/`, overlap condicional e delimitação de
+> conteúdo):** duas emendas ao chunking descrito acima. (a) O overlap de 10–20% deixa de ser
+> universal — passa a ser condicional ao `referenceType` do chunk (ADR-0013): `CHAPTER` mantém
+> overlap (~15%, dá continuidade em cortes de parágrafo que são arbitrários por natureza);
+> `NUMBERED_ITEM` fica **sem** overlap no texto — o corte entre chunks desse estilo é sempre uma
+> fronteira deliberada de item, nunca um corte arbitrário de parágrafo (mesmo racional já usado no
+> ADR-0013 seção 4 para o piso mínimo de tokens). Implementado em `Chunker.kt`. (b) A ingestão
+> ganha uma capacidade nova: delimitação de conteúdo por intervalo de páginas fornecido pelo
+> operador (`--content-pages=<início>-<fim>`), para excluir front matter (capa, sumário) e back
+> matter (índice remissivo) do que vira chunk — coerente com o modelo de responsabilidade já usado
+> para `bookId` no ADR-0008 (é o operador que ingere quem conhece a estrutura do livro).
+> Implementado em `IngestArgsParser`/`IngestionService`.
+
 ## Contexto
 Decorrente do [ADR-0001](0001-arquitetura-geral-backend-completo.md): quem alimenta os livros é o
 desenvolvedor, não o usuário final do app. Não existe requisito de importar PDF pelo celular.
