@@ -16,18 +16,29 @@ import java.util.UUID
 /**
  * Único ponto de entrada da lógica de retrieval (`specs/retrieval/plan.md`, seção "Contratos entre
  * camadas"): resolve o escopo da busca em versões ativas buscáveis (CA2/CA6), embedda a pergunta
- * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010), delega a busca híbrida ao
- * [HybridSearchDao] (T3), corta em [RetrievalProperties.topK] candidatos pós-fusão (`plan.md`,
- * "Config nova" — "quantos candidatos pós-fusão entram no `ContextAssembler`", T7), passa o
- * restante pelo [ContextAssembler] (T5) e, por fim, considera "relevante" (CA7, T6) qualquer
- * candidato restante cuja `cosineSimilarity` bata ou supere [RetrievalProperties.minCosineSimilarity]
- * **ou** cujo `matchedLexicalBranch` seja `true` — só devolve `NoRelevantContext` se nenhum
- * candidato satisfizer nenhuma das duas condições (ou a lista estiver vazia). A cláusula
- * `matchedLexicalBranch` existe porque `cosineSimilarity == 0.0` não significa necessariamente
- * "irrelevante": é também o valor de "não disponível" que `HybridSearchDao` usa para um chunk que
- * só veio do ramo léxico (match exato de termo/nome próprio, CA3) sem aparecer entre os top-N
- * vetoriais — sem essa cláusula, esse cenário (exatamente o que CA3 existe para resolver) caía
- * incorretamente em `NoRelevantContext` (bug corrigido em 2026-07-17, nota também em `plan.md`).
+ * (`EmbeddingClient.embed(..., EmbeddingInputType.QUERY)`, ADR-0010), detecta números de item
+ * numerado mencionados na pergunta ([ItemLookupDetector], RF1, `busca-exata-item`/T5), delega a
+ * busca híbrida ao [HybridSearchDao] (T3, agora também com o ramo exato) passando os números
+ * detectados, corta em [RetrievalProperties.topK] candidatos pós-fusão (`plan.md`, "Config nova" —
+ * "quantos candidatos pós-fusão entram no `ContextAssembler`", T7), passa o restante pelo
+ * [ContextAssembler] (T5) e, por fim, considera "relevante" (CA7, T6) qualquer candidato restante
+ * cuja `cosineSimilarity` bata ou supere [RetrievalProperties.minCosineSimilarity] **ou** cujo
+ * `matchedLexicalBranch` seja `true` **ou** cujo `matchedExactBranch` seja `true` — só devolve
+ * `NoRelevantContext` se nenhum candidato satisfizer nenhuma das três condições (ou a lista estiver
+ * vazia). A cláusula `matchedLexicalBranch` existe porque `cosineSimilarity == 0.0` não significa
+ * necessariamente "irrelevante": é também o valor de "não disponível" que `HybridSearchDao` usa
+ * para um chunk que só veio do ramo léxico (match exato de termo/nome próprio, CA3) sem aparecer
+ * entre os top-N vetoriais — sem essa cláusula, esse cenário (exatamente o que CA3 existe para
+ * resolver) caía incorretamente em `NoRelevantContext` (bug corrigido em 2026-07-17, nota também em
+ * `plan.md`). A cláusula `matchedExactBranch` (`busca-exata-item`/T5, risco **crítico R1** do
+ * `plan.md`) existe pela mesma razão, de forma ainda mais grave: um chunk que só veio do ramo
+ * exato (lookup de item numerado, RF1/RF2) pode ter `cosineSimilarity == 0.0` genuinamente "não
+ * disponível" **e** `matchedLexicalBranch == false` ao mesmo tempo — a pergunta pode conter só o
+ * número do item, sem nenhum termo léxico que bata no texto do chunk (ex.: "qual a pergunta 25?").
+ * Sem esta terceira cláusula, esse chunk seria descartado como "sem contexto relevante" mesmo tendo
+ * sido encontrado por match exato de número de item, e CA1/CA2 (`specs/busca-exata-item/spec.md`)
+ * falhariam silenciosamente — exatamente o comportamento observado na sessão real de 2026-07-22
+ * que originou esta feature.
  */
 @Service
 class RetrievalService(
@@ -38,6 +49,7 @@ class RetrievalService(
     private val hybridSearchDao: HybridSearchDao,
     private val contextAssembler: ContextAssembler,
     private val retrievalProperties: RetrievalProperties,
+    private val itemLookupDetector: ItemLookupDetector,
 ) {
     fun search(
         query: String,
@@ -47,6 +59,7 @@ class RetrievalService(
         if (eligibleVersions.isEmpty()) return RetrievalResult.NoRelevantContext
 
         val queryVector = embeddingClient.embed(listOf(query), EmbeddingInputType.QUERY).first()
+        val exactItemNumbers = itemLookupDetector.detect(query)
 
         val rows =
             hybridSearchDao.search(
@@ -56,10 +69,7 @@ class RetrievalService(
                 vectorCandidates = retrievalProperties.vectorCandidates,
                 lexicalCandidates = retrievalProperties.lexicalCandidates,
                 rrfK = retrievalProperties.rrfK,
-                // Ramo exato (busca-exata-item/T4) ainda não fiado aqui — ItemLookupDetector
-                // entra em T5. Lista vazia preserva o comportamento pré-T4 (HybridSearchDao.search,
-                // KDoc de exactItemNumbers).
-                exactItemNumbers = emptyList(),
+                exactItemNumbers = exactItemNumbers,
                 exactMatchLimit = retrievalProperties.topK,
             )
 
@@ -79,7 +89,9 @@ class RetrievalService(
 
         val hasRelevantCandidate =
             assembledRows.any { row ->
-                row.cosineSimilarity >= retrievalProperties.minCosineSimilarity || row.matchedLexicalBranch
+                row.cosineSimilarity >= retrievalProperties.minCosineSimilarity ||
+                    row.matchedLexicalBranch ||
+                    row.matchedExactBranch
             }
         if (!hasRelevantCandidate) {
             return RetrievalResult.NoRelevantContext

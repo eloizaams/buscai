@@ -30,7 +30,7 @@ commit por task. Ao final da última: `/pr`.
   número inexistente (lista vazia de matches), guard de `reference_type`, chunk exato ordena à
   frente dos híbridos, lista vazia de números ⇒ comportamento idêntico ao atual.
 
-- [ ] **T5 — Fiação no `RetrievalService`**
+- [x] **T5 — Fiação no `RetrievalService`**
   Detector → DAO; filtro de relevância CA7 ganha `|| matchedExactBranch` (risco crítico R1).
   Testes unit (DAO mockado): lookup injeta números, chunk exact-only sobrevive ao filtro,
   pergunta sem marcador não altera a chamada.
