@@ -5,8 +5,8 @@ import org.springframework.stereotype.Component
 /**
  * Detecta números de item numerado mencionados numa pergunta em pt-BR (RF1,
  * `specs/busca-exata-item/spec.md`). Componente puro — sem I/O, sem acesso a repositório/banco —
- * chamado pelo `RetrievalService` (T5) para alimentar a CTE de busca exata do `HybridSearchDao`
- * (T4); não é chamado por ninguém ainda nesta task.
+ * chamado pelo `RetrievalService` para alimentar a CTE de busca exata (`exact_rank`) do
+ * `HybridSearchDao`.
  *
  * ## Regra de detecção
  *
