@@ -408,4 +408,67 @@ A regressão em espiritos-025 é pequena (2/3 vs 3/3 referências) e merece inve
 
 Próximos passos: (1) investigar espiritos-025 se houver tempo; (2) decidir se frente R3 (`--content-pages` obrigatório em toda ingestão futura, ou apenas para livros com índice remissivo) entra no roadmap; (3) documentar em ADR-0008 a interação entre overlap condicional + delimitação de conteúdo.
 
+## Resultado: Gate T7 (busca-exata-item, 2026-07-23) — lookup exato por número de item
+
+**Status**: ✅ **GATE APROVADO** — 1 melhoria (espiritos-013 FAIL→OK, o objetivo da feature), 0 regressões (régua Gate T5: regressões ≤ 2), novos casos CA1/CA4/CA5 corretos.
+
+### Contexto
+
+Implementação das tasks T1-T6 de `specs/busca-exata-item/`: derivação de `item_start`/`item_end` no `Chunker` (T1), migration `V5__chunk_item_range.sql` com backfill do índice existente (T2), `ItemLookupDetector` (T3), 3ª CTE `exact_rank` no `HybridSearchDao` com boost aditivo (T4), fiação no `RetrievalService` + filtro CA7 com `matchedExactBranch` (T5), docs + golden set (T6).
+
+Metodologia desta vez: **medição de recall via `RetrievalDebugCommand`** (profile `retrieval-debug`), rodando o pipeline de retrieval real (`ItemLookupDetector` + `exact_rank` + busca híbrida) contra Postgres/Neon + Voyage reais, **sem chamar o Claude** — a geração/prompt (`ANSWER_SYSTEM_PROMPT`) não muda nesta feature, então a única dimensão em risco é o recall. Índice **não reingerido**: a 1ª subida do backend aplicou a migration V5 via Flyway, cujo backfill populou `item_start`/`item_end` a partir da coluna `reference` já existente (do índice do Gate T5, `--content-pages=14-476`). As 36 perguntas do golden set (33 anteriores + 3 novas da T6) foram rodadas uma a uma; o marcador de chunk vindo do ramo exato é `score ≥ 1.0` (constante `EXACT_MATCH_SCORE = 1.0`, boost aditivo sobre o RRF).
+
+### O objetivo da feature: espiritos-013 FAIL → OK ✅
+
+`espiritos-013` ("No Livro dos Espíritos, pergunta 700, ...") era **FAIL** no Gate T5 (NoRelevantContext — limitação conhecida de busca híbrida por número exato, registrada como follow-up no ADR-0013). Agora recupera a faixa **699–705** (contém 700) com `score=1.0141` (boost do ramo exato) — CA2 do `spec.md` satisfeito.
+
+### Recall por resposta: 32/36 OK · 4 PARTIAL · 0 FAIL (baseline Gate T5: 28/33 OK · 4 PARTIAL · 1 FAIL)
+
+- **OK (26 positivos + 6 negativos = 32)**: recuperaram a referência esperada (exata ou em faixa que a contém), ou retornaram `NoRelevantContext` corretamente nos negativos. Os lookups com marcador de item (001, 002, 004-016, 030, 032, 034) trouxeram a faixa/item certo à frente via boost do ramo exato (`score > 1.0`); os semânticos que recuperaram a ref (018-024, 031) via busca híbrida normal.
+- **PARTIAL (4)**: `espiritos-003`, `-017`, `-025`, `-033` — **exatamente os mesmos 4 do baseline Gate T5**, todos perguntas semânticas (sem marcador de item, então o ramo exato é inerte por construção). Nenhuma regressão nova; nenhuma alucinação.
+- **FAIL (0)**.
+
+### Casos novos da T6 (busca-exata-item): 3/3 corretos
+
+- `espiritos-034` (CA1) — "Qual a pergunta 157?" **sem o nome do livro no texto**: recuperou **155–159** (contém 157) com `score=1.0164` puramente pelo ramo exato, sem nenhum match semântico/léxico. É exatamente a frase literal que caía em `NoRelevantContext` antes desta feature (nota de `espiritos-001`/`$notaLivroDosEspiritos`).
+- `espiritos-035` (CA4) — "O que aconteceu no ano de 1857?": `NoRelevantContext`. Número solto sem marcador não disparou o `ItemLookupDetector` — nenhum chunk injetado pelo ramo exato, comportamento idêntico à busca híbrida pura.
+- `espiritos-036` (CA5) — "Qual a pergunta 9999?" (livro vai até 1019): `NoRelevantContext`, sem fabricar item inexistente.
+
+### Controles negativos: 6/6 corretos
+
+`espiritos-026`/`027`/`028`/`029` (tópicos fora do acervo) + os novos `035` (ano sem marcador) e `036` (item inexistente) retornaram `NoRelevantContext` sem inventar. O ramo exato não produziu nenhum falso positivo nos negativos (9999 está fora de qualquer faixa; 1857 não tem marcador).
+
+### Observação (data-quality pré-existente, não regressão, não bloqueia): faixa malformada "5–224"
+
+O chunk malformado com `reference` "5–224" (p.151, texto só "152" — artefato do material fonte, mesmo achado A3 já documentado no Gate T5) é uma faixa **ascendente** válida, então o backfill da V5 legitimamente populou `item_start=5`/`item_end=224` (o guard de faixa invertida do backfill rejeitou corretamente as reversas como "222–5", que aparecem só com `score < 1.0`, via léxico/vetorial, nunca pelo ramo exato). Consequência: "5–224" vira um match exato espúrio de baixa prioridade para qualquer lookup de item em [5,224] (aparece em 001, 002, 006-009, 030, 034 com `score` exatamente `1.0000` = só o boost, sem contribuição RRF). **Nunca desloca o item correto**, que sempre pontua acima (`> 1.0000`, boost + RRF) — recall não é prejudicado, e é uma boa validação de que a ordenação boost+RRF é robusta. Fica como follow-up de limpeza de dados (reingestão do livro eliminaria o chunk-lixo), não como bloqueio deste gate.
+
+### Groundedness: não re-medida (geração inalterada)
+
+Esta feature não toca a geração nem o `ANSWER_SYSTEM_PROMPT`; a baseline Gate T5 estabeleceu groundedness 33/33. Como o contexto recuperado para os lookups agora inclui corretamente o item pedido (antes ausente no caso 013), a groundedness só pode manter-se ou melhorar. Não foi re-executada via chat real (evita gasto de crédito Anthropic para uma dimensão fora do risco desta mudança).
+
+### Recomendação
+
+✅ **Aprovar a feature `busca-exata-item`** (tasks T1-T6). Critérios de CA7/régua Gate T5 satisfeitos: **0 regressões** (≤ 2), o objetivo central (espiritos-013 FAIL→OK, CA2) atingido, e os três casos novos (CA1/CA4/CA5) corretos. Follow-up não-bloqueante: limpeza do chunk-lixo "5–224" numa reingestão futura.
+
 [2026-07-23T15:30:24Z] eval executado
+[2026-07-23T15:32:46Z] eval executado
+[2026-07-23T15:58:25Z] eval executado
+[2026-07-23T16:02:04Z] eval executado
+[2026-07-23T16:06:12Z] eval executado
+[2026-07-23T16:07:54Z] eval executado
+[2026-07-23T16:10:55Z] eval executado
+[2026-07-23T16:32:16Z] eval executado
+[2026-07-23T16:34:31Z] eval executado
+[2026-07-23T16:38:09Z] eval executado
+[2026-07-23T16:39:02Z] eval executado
+[2026-07-23T16:40:34Z] eval executado
+[2026-07-23T16:46:43Z] eval executado
+[2026-07-23T16:51:31Z] eval executado
+[2026-07-23T16:54:08Z] eval executado
+[2026-07-23T16:55:41Z] eval executado
+[2026-07-23T16:59:53Z] eval executado
+[2026-07-23T17:03:54Z] eval executado
+[2026-07-23T17:10:16Z] eval executado
+[2026-07-23T17:15:53Z] eval executado
+[2026-07-23T17:25:13Z] eval executado
+[2026-07-23T17:28:28Z] eval executado

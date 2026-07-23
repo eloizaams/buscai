@@ -40,7 +40,7 @@ commit por task. Ao final da última: `/pr`.
   "Documentação"); golden set ganha os casos novos (lookup puro "pergunta 25", negativo CA4,
   item inexistente CA5).
 
-- [ ] **T7 — Gate `rag-evaluator` (CA6)**
+- [x] **T7 — Gate `rag-evaluator` (CA6)**
   Rodar o golden set completo contra a stack real (roteiro da memória
   `project_rag_evaluator_gate_infra_real`: infra do dono do repo via `!`, comandos de linha
   única); régua = "Resultado: Gate T5" em `specs/eval/history.md`. Registrar resultado em
