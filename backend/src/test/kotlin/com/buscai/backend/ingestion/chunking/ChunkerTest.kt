@@ -203,6 +203,11 @@ class ChunkerTest {
         assertEquals(2, chunks.size)
         assertEquals("Capítulo I", chunks[0].reference)
         assertEquals("Capítulo II", chunks[1].reference)
+        // Faixa numérica de item (busca-exata-item, R5) não se aplica a CHAPTER: sempre nula.
+        assertEquals(null, chunks[0].itemStart)
+        assertEquals(null, chunks[0].itemEnd)
+        assertEquals(null, chunks[1].itemStart)
+        assertEquals(null, chunks[1].itemEnd)
     }
 
     @Test
@@ -213,6 +218,8 @@ class ChunkerTest {
 
         assertEquals(1, chunks.size)
         assertEquals(null, chunks[0].reference)
+        assertEquals(null, chunks[0].itemStart)
+        assertEquals(null, chunks[0].itemEnd)
     }
 
     @Test
@@ -267,10 +274,15 @@ class ChunkerTest {
             chunks[0].tokenCount < MIN_CHUNK_TOKENS,
         ) { "item isolado precisa ficar abaixo do piso, não completado às custas do item 2" }
         assertEquals("1", chunks[0].reference)
+        // Item único: itemStart == itemEnd == o próprio número (busca-exata-item, R5).
+        assertEquals(1, chunks[0].itemStart)
+        assertEquals(1, chunks[0].itemEnd)
 
         // Item 2 íntegro no chunk seguinte, nunca partido para caber no grupo anterior.
         assertTrue(chunks[1].text.endsWith(item2)) { "item 2 precisa estar íntegro, nunca cortado para caber no grupo do item 1" }
         assertEquals("2", chunks[1].reference)
+        assertEquals(2, chunks[1].itemStart)
+        assertEquals(2, chunks[1].itemEnd)
     }
 
     @Test
@@ -285,6 +297,33 @@ class ChunkerTest {
         assertEquals(1, chunks.size)
         assertEquals("$item1\n\n$item2\n\n$item3", chunks[0].text)
         assertEquals("1–3", chunks[0].reference)
+        // Faixa (busca-exata-item, R5): itemStart/itemEnd derivados das mesmas variáveis first/last
+        // do rótulo "1–3", nunca por re-parse dele.
+        assertEquals(1, chunks[0].itemStart)
+        assertEquals(3, chunks[0].itemEnd)
+    }
+
+    @Test
+    fun `chunk with NUMBERED_ITEM leaves itemStart and itemEnd null for a preamble group without any annotated reference`() {
+        // Parágrafo de prosa comum antes do primeiro item numerado (ReferenceAnnotator anota
+        // reference = null até o primeiro marcador) — dimensionado para MAX_OWN_CONTENT_TOKENS
+        // (695) para fechar seu próprio grupo, sem se misturar ao item 1 seguinte.
+        val preamble = words(1..695)
+        val item1 = item(1, 696..750)
+        val pageTexts = mapOf(1 to "$preamble\n\n$item1")
+
+        val chunks = chunker.chunk(pageTexts, ReferenceType.NUMBERED_ITEM)
+
+        assertEquals(2, chunks.size)
+        assertEquals(preamble, chunks[0].text)
+        assertEquals(null, chunks[0].reference)
+        assertEquals(null, chunks[0].itemStart)
+        assertEquals(null, chunks[0].itemEnd)
+
+        assertTrue(chunks[1].text.endsWith(item1))
+        assertEquals("1", chunks[1].reference)
+        assertEquals(1, chunks[1].itemStart)
+        assertEquals(1, chunks[1].itemEnd)
     }
 
     @Test

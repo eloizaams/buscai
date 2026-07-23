@@ -64,7 +64,10 @@ internal fun tokenize(text: String): List<String> = TOKEN_REGEX.findAll(text).ma
  * Resultado do [Chunker]: um trecho de texto pronto para ser validado ([ChunkValidator]) e depois
  * persistido como `com.buscai.backend.catalog.Chunk` (depois de gerar o embedding). [reference] só
  * é preenchido quando `chunk(...)` recebe um `referenceType` não nulo (ADR-0013) — anotado por
- * [ReferenceAnnotator] a partir do texto dos parágrafos do grupo (ver [Chunker.chunk]).
+ * [ReferenceAnnotator] a partir do texto dos parágrafos do grupo (ver [Chunker.chunk]). [itemStart]/
+ * [itemEnd] são a mesma faixa de [reference] já derivada em inteiro, só para `referenceType ==
+ * NUMBERED_ITEM` (busca-exata-item, R5) — sempre `null` para `CHAPTER`/estilo ausente. Derivados no
+ * mesmo ponto que [reference] ([Chunker.groupReference]), nunca por re-parse do rótulo.
  */
 data class ChunkDraft(
     val page: Int,
@@ -72,6 +75,8 @@ data class ChunkDraft(
     val tokenCount: Int,
     val text: String,
     val reference: String? = null,
+    val itemStart: Int? = null,
+    val itemEnd: Int? = null,
 )
 
 /**
@@ -182,13 +187,16 @@ class Chunker {
                 }
             val fullText = if (overlapText.isNullOrEmpty()) ownText else "$overlapText\n\n$ownText"
             val first = group.first()
+            val groupRef = groupReference(group, referenceType)
             drafts +=
                 ChunkDraft(
                     page = first.page,
                     charOffset = first.charOffset,
                     tokenCount = countTokens(fullText),
                     text = fullText,
-                    reference = groupReference(group, referenceType),
+                    reference = groupRef.label,
+                    itemStart = groupRef.itemStart,
+                    itemEnd = groupRef.itemEnd,
                 )
             previousOwnText = ownText
             previousOwnTokenCount = ownTokenCount
@@ -198,26 +206,43 @@ class Chunker {
 
     /**
      * Referência final de um grupo já fechado, conforme o `referenceType` declarado (ADR-0013,
-     * "Chunking atômico por item"). `null` quando nenhum estilo foi declarado. `CHAPTER`: rótulo do
-     * capítulo corrente no primeiro parágrafo do grupo (agrupamento inalterado, um único capítulo
-     * por grupo na prática). `NUMBERED_ITEM`: valor único quando todos os parágrafos do grupo
-     * carregam a mesma referência; intervalo `"primeiro–último"` quando [groupUnits] juntou mais de
-     * um item curto no mesmo grupo (nunca cortando um parágrafo no meio, ver [groupUnits]).
+     * "Chunking atômico por item"). [GroupReference.label]: `null` quando nenhum estilo foi
+     * declarado; para `CHAPTER`, o rótulo do capítulo corrente no primeiro parágrafo do grupo
+     * (agrupamento inalterado, um único capítulo por grupo na prática); para `NUMBERED_ITEM`, valor
+     * único quando todos os parágrafos do grupo carregam a mesma referência, ou intervalo
+     * `"primeiro–último"` quando [groupUnits] juntou mais de um item curto no mesmo grupo (nunca
+     * cortando um parágrafo no meio, ver [groupUnits]). [GroupReference.itemStart]/[itemEnd]
+     * (busca-exata-item, R5): mesma faixa em inteiro, derivada das mesmas variáveis `first`/`last`
+     * usadas para montar o rótulo (nunca por re-parse dele) — só preenchidas para `NUMBERED_ITEM`;
+     * `null` para `CHAPTER`/estilo ausente, e também `null` se o grupo não carregar nenhuma
+     * referência anotada (não deveria ocorrer em uso normal).
      */
     private fun groupReference(
         group: List<ParagraphUnit>,
         referenceType: ReferenceType?,
-    ): String? =
+    ): GroupReference =
         when (referenceType) {
-            null -> null
-            ReferenceType.CHAPTER -> group.first().reference
+            null -> GroupReference(label = null, itemStart = null, itemEnd = null)
+            ReferenceType.CHAPTER -> GroupReference(label = group.first().reference, itemStart = null, itemEnd = null)
             ReferenceType.NUMBERED_ITEM -> {
                 val references = group.mapNotNull { it.reference }
                 val first = references.firstOrNull()
                 val last = references.lastOrNull()
-                if (first == null || last == null || first == last) first else "$first–$last"
+                val label = if (first == null || last == null || first == last) first else "$first–$last"
+                GroupReference(label = label, itemStart = first?.toInt(), itemEnd = last?.toInt())
             }
         }
+
+    /**
+     * Retorno único de [groupReference]: o rótulo textual de exibição/citação ([label], já
+     * existente) e a mesma faixa em inteiro ([itemStart]/[itemEnd], busca-exata-item R5) — ambos
+     * derivados das mesmas variáveis `first`/`last`, nunca por re-parse de [label].
+     */
+    private data class GroupReference(
+        val label: String?,
+        val itemStart: Int?,
+        val itemEnd: Int?,
+    )
 
     private fun overlapTargetTokens(previousOwnTokenCount: Int): Int =
         ceil(previousOwnTokenCount * OVERLAP_TARGET_RATIO).toInt().coerceAtLeast(1)

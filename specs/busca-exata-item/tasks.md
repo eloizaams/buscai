@@ -4,7 +4,7 @@ Ordem de execução; cada task cabe numa sessão do `kotlin-implementer` (uma ch
 task — CLAUDE.md). Toda task: `ktlintFormat` + testes do módulo verdes antes de `/commit`; um
 commit por task. Ao final da última: `/pr`.
 
-- [ ] **T1 — Derivação de `itemStart`/`itemEnd` na ingestão (fonte única)**
+- [x] **T1 — Derivação de `itemStart`/`itemEnd` na ingestão (fonte única)**
   `ChunkDraft` ganha `itemStart: Int?`/`itemEnd: Int?`; `Chunker.groupReference` passa a derivar
   rótulo e inteiros do mesmo lugar (lista ordenada de referências do grupo — `toInt()` sobre os
   valores, nunca re-parse do rótulo "N–M"). `CHAPTER`/estilo ausente → nulos. Testes unit:
