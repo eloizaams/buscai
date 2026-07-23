@@ -187,6 +187,24 @@ exato** (consulta direta em `reference`), não de confiar no `ts_vector`/embeddi
 Fica registrado como trabalho subsequente, habilitado por este ADR (a coluna `reference` passa a
 existir e a citar por item único), mas não decidido aqui.
 
+> **Nota (2026-07-23, `specs/busca-exata-item/`):** o follow-up acima foi implementado — busca
+> estruturada exata por número de item, decidida em detalhe em `specs/busca-exata-item/plan.md`.
+> Racional completo lá; resumo do que ficou decidido:
+> (a) a busca exata entrou como **terceira CTE** (`exact_rank`) dentro da mesma query nativa do
+> `HybridSearchDao` — não uma query separada — preservando a invariante de porta única/1
+> round-trip por busca (relevante no cold start do Neon free tier, ADR-0006);
+> (b) `HybridSearchRow.matchedExactBranch` é uma **exceção deliberada** ao filtro de relevância CA7
+> do `RetrievalService`: sem essa cláusula, um chunk que só veio do ramo exato (cosine 0.0, sem
+> match léxico) seria descartado como "sem contexto relevante" — risco crítico corrigido em T5 da
+> feature, mesma classe de bug já registrada para `matchedLexicalBranch`;
+> (c) as colunas derivadas `chunk.item_start`/`chunk.item_end` (migration `V5__chunk_item_range.sql`)
+> têm fonte única em `Chunker.groupReference` — nunca por re-parse do rótulo `reference`, que
+> continua sendo só o rótulo de exibição/citação decidido na seção 4 acima;
+> (d) `ItemLookupDetector` (RF1) detecta a intenção de lookup por marcador explícito em pt-BR
+> ("pergunta"/"questão"/"item"/"número", singular e plural) — o risco aceito de falso
+> positivo/negativo está documentado no próprio KDoc da classe (ex.: número solto sozinho nunca
+> dispara o lookup; "capítulo N" fica fora de escopo desta feature, só itens numerados).
+
 ### 5. Retrocompatibilidade (livros já ingeridos, `reference` NULL)
 
 Todos os livros atuais têm `reference` nulo (o `chapter` nunca foi preenchido). Como a decisão de

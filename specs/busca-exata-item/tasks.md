@@ -35,7 +35,7 @@ commit por task. Ao final da última: `/pr`.
   Testes unit (DAO mockado): lookup injeta números, chunk exact-only sobrevive ao filtro,
   pergunta sem marcador não altera a chamada.
 
-- [ ] **T6 — Docs + golden set**
+- [x] **T6 — Docs + golden set**
   Nota datada no ADR-0013 §4 e linha de referência no ADR-0003 (conteúdo no `plan.md`, seção
   "Documentação"); golden set ganha os casos novos (lookup puro "pergunta 25", negativo CA4,
   item inexistente CA5).
