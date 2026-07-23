@@ -311,6 +311,10 @@ class HybridSearchDaoVolumeTest {
             vectorCandidates = VECTOR_CANDIDATES,
             lexicalCandidates = LEXICAL_CANDIDATES,
             rrfK = RRF_K,
+            // Ramo exato (busca-exata-item/T4) fora do escopo deste teste de latência — lista
+            // vazia preserva o comportamento medido pré-T4 (HybridSearchDao.search, KDoc).
+            exactItemNumbers = emptyList(),
+            exactMatchLimit = VECTOR_CANDIDATES,
         )
 
         // Mediana de MEASURED_REPETITIONS amostras (revisão da T8) — reduz o risco de uma única
@@ -326,6 +330,8 @@ class HybridSearchDaoVolumeTest {
                             vectorCandidates = VECTOR_CANDIDATES,
                             lexicalCandidates = LEXICAL_CANDIDATES,
                             rrfK = RRF_K,
+                            exactItemNumbers = emptyList(),
+                            exactMatchLimit = VECTOR_CANDIDATES,
                         )
                     }
                 elapsedNanos / 1_000_000.0

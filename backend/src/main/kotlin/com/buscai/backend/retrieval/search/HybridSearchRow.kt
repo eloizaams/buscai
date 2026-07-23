@@ -33,6 +33,16 @@ import java.util.UUID
  * cenário que a fusão RRF existe para resolver) era descartado como "sem contexto relevante" só
  * por não ter aparecido entre os top-N vetoriais (nota datada em `plan.md`, seção sobre o sinal de
  * "sem contexto relevante", 2026-07-17).
+ *
+ * [matchedExactBranch] (`busca-exata-item`/T4): `true` quando o chunk apareceu na CTE `exact_rank`
+ * de `HybridSearchDao` (range-contains sobre `item_start`/`item_end` restrito a `reference_type =
+ * 'NUMBERED_ITEM'`, ver `HybridSearchDao.search`) — mesma classe de sinal que
+ * [matchedLexicalBranch], por um motivo análogo e mais grave (risco crítico R1,
+ * `specs/busca-exata-item/plan.md`): um chunk que só veio do ramo exato pode ter
+ * [cosineSimilarity] `0.0` genuinamente "não disponível" **e** [matchedLexicalBranch] `false` (a
+ * pergunta pode não conter nenhum termo léxico que bata no texto do chunk, só o número do item) —
+ * sem este terceiro sinal, `RetrievalService` (CA7, T5) descartaria esse chunk como "sem contexto
+ * relevante" mesmo tendo sido encontrado por match exato de número de item.
  */
 data class HybridSearchRow(
     val chunkId: UUID,
@@ -46,4 +56,5 @@ data class HybridSearchRow(
     val cosineSimilarity: Double,
     val rrfScore: Double,
     val matchedLexicalBranch: Boolean,
+    val matchedExactBranch: Boolean,
 )

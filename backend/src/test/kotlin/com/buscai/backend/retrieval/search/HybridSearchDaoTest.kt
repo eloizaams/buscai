@@ -27,6 +27,8 @@ class HybridSearchDaoTest {
                     vectorCandidates = 10,
                     lexicalCandidates = 10,
                     rrfK = 60,
+                    exactItemNumbers = emptyList(),
+                    exactMatchLimit = 10,
                 )
             }
 
@@ -47,6 +49,8 @@ class HybridSearchDaoTest {
                     vectorCandidates = 10,
                     lexicalCandidates = 10,
                     rrfK = 60,
+                    exactItemNumbers = emptyList(),
+                    exactMatchLimit = 10,
                 )
             }
 

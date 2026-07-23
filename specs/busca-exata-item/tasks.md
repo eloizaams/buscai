@@ -23,7 +23,7 @@ commit por task. Ao final da última: `/pr`.
   positivos ("pergunta 25", "questão 700", "item 157", "pergunta nº 25", múltiplos números
   acima do cap).
 
-- [ ] **T4 — CTE `exact_rank` no `HybridSearchDao`**
+- [x] **T4 — CTE `exact_rank` no `HybridSearchDao`**
   Parâmetro `exactItemNumbers: List<Int>`; CTE com predicado range-contains + guard
   `reference_type = 'NUMBERED_ITEM'` + LIMIT; fusão 3-way com `EXACT_MATCH_SCORE` aditivo;
   `HybridSearchRow.matchedExactBranch`. Testes de integração: item único, faixa contendo N,

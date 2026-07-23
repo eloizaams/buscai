@@ -37,6 +37,7 @@ class ContextAssemblerTest {
             cosineSimilarity = 0.0,
             rrfScore = rrfScore,
             matchedLexicalBranch = false,
+            matchedExactBranch = false,
         )
 
     @Test

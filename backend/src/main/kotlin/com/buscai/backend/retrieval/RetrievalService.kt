@@ -56,6 +56,11 @@ class RetrievalService(
                 vectorCandidates = retrievalProperties.vectorCandidates,
                 lexicalCandidates = retrievalProperties.lexicalCandidates,
                 rrfK = retrievalProperties.rrfK,
+                // Ramo exato (busca-exata-item/T4) ainda não fiado aqui — ItemLookupDetector
+                // entra em T5. Lista vazia preserva o comportamento pré-T4 (HybridSearchDao.search,
+                // KDoc de exactItemNumbers).
+                exactItemNumbers = emptyList(),
+                exactMatchLimit = retrievalProperties.topK,
             )
 
         // Corte de top-k pós-fusão (RRF já ordena `rows` por `rrfScore` desc, ver
