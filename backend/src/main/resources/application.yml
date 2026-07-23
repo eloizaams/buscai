@@ -45,3 +45,4 @@ buscai:
     token-budget: 3000
     min-cosine-similarity: 0.5
     neighbor-dedup-min-overlap-chars: 75
+    max-exact-item-numbers: 3

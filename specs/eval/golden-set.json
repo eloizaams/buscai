@@ -1,5 +1,5 @@
 {
-  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças. Preenchido pela primeira vez em specs/referencia-estruturada/tasks.md T8 (2026-07-21) com 3 casos sobre 'O Livro dos Espíritos' (livro numbered-item real). Expandido de 3 para 33 casos em specs/limite-item-numerado/tasks.md T1 (2026-07-22, CA7) — conteúdo extraído e verificado diretamente contra o PDF real do usuário (pdftotext -layout, numeração 1-1019 confirmada linha a linha) nesta sessão; ainda pendente da confirmação final do dono do produto sobre o conteúdo antes de rodar T2 (baseline).",
+  "$comment": "Golden set do eval de RAG (planejamento Fase 7; regressão desde a Fase 4). O rag-evaluator lê este arquivo; enquanto 'questions' estiver vazio, ele deve reportar que o golden set ainda não foi preenchido em vez de aprovar mudanças. Preenchido pela primeira vez em specs/referencia-estruturada/tasks.md T8 (2026-07-21) com 3 casos sobre 'O Livro dos Espíritos' (livro numbered-item real). Expandido de 3 para 33 casos em specs/limite-item-numerado/tasks.md T1 (2026-07-22, CA7) — conteúdo extraído e verificado diretamente contra o PDF real do usuário (pdftotext -layout, numeração 1-1019 confirmada linha a linha) nesta sessão; ainda pendente da confirmação final do dono do produto sobre o conteúdo antes de rodar T2 (baseline). Expandido de 33 para 36 casos (espiritos-034 a espiritos-036) em specs/busca-exata-item/tasks.md T6 (2026-07-23) — dois controles negativos do lookup exato (CA4/CA5) e um positivo que reaproveita o item 157 já verificado em espiritos-001 (frase exata da regressão real que motivou a feature); ainda não foram rodados contra o backend real, isso é T7 (pendente da infra do dono do repo).",
   "$notaLivroDosEspiritos": "Avaliação real executada em 2026-07-21 (3 casos originais): livro ingerido de fato (--book-id=o-livro-dos-espiritos --reference-style=numbered-item, PDF local do usuário, Voyage embeddings reais) contra um Postgres/Neon real, perguntado via web/ no navegador contra o backend real (Claude real). Resultado (relatado no estilo do rag-evaluator, ver specs/eval/history.md para o bloco completo): groundedness 3/3 — nenhuma resposta inventou conteúdo, nenhuma citou página, todas citaram o número do item corretamente; recall com uma falha real observada — a pergunta com a frase exata 'qual a pergunta 157?' (sem o nome do livro, sem scope) retornou NoRelevantContext na primeira tentativa, só recuperando o item 157 depois de reformulada semanticamente ('o que acontece depois da morte?'). Isso não é uma regressão desta feature (retrieval/RRF não mudou aqui, só o rótulo de citação) — é uma limitação pré-existente de busca lexical/vetorial para consulta literal por número de item, exatamente o caso que specs/referencia-estruturada/plan.md ('Fora do plano desta feature') já registra como follow-up ('busca estruturada exata por número de item'). Os 30 casos novos (espiritos-004 a espiritos-033, T1 de specs/limite-item-numerado/) ainda não foram rodados contra o backend real — servem de 'antes' (T2) e 'depois' (T7) da correção do limite de item numerado sem linha em branco.",
   "schema_example": {
     "id": "ex-001",
@@ -357,6 +357,32 @@
       ],
       "scope": "o-livro-dos-espiritos",
       "notes": "Categoria: pergunta semântica em linguagem natural, sem nome do livro."
+    },
+    {
+      "id": "espiritos-034",
+      "question": "Qual a pergunta 157?",
+      "expected_answer_gist": "Conteúdo real verificado (2026-07-21): item 157 pergunta se a alma sente, no momento da morte, alguma aspiração/êxtase que lhe faça entrever o mundo espírita; a resposta descreve a alma desfazendo os laços com o corpo e gozando por antecipação do estado de Espírito. A resposta deve citar o livro e o item 157 diretamente no texto, sem mencionar página.",
+      "expected_sources": [
+        { "bookId": "o-livro-dos-espiritos", "bookTitle": "O Livro dos Espíritos", "reference": "157", "referenceType": "NUMBERED_ITEM" }
+      ],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: lookup direto por número de item (CA1, busca-exata-item) — é literalmente a frase que causou a regressão real documentada em espiritos-001/$notaLivroDosEspiritos: 'qual a pergunta 157?' sem o nome do livro no texto (a ambiguidade de qual livro é resolvida pelo scope, não pelo texto da pergunta, RF4). Antes desta feature, essa frase exata caía em NoRelevantContext porque nenhum termo léxico/semântico da pergunta batia no texto do chunk. Com o ItemLookupDetector + ramo exato (exact_rank) do HybridSearchDao, o item 157 deve ser recuperado mesmo sem nenhum match léxico/vetorial — este caso reaproveita o conteúdo já verificado de espiritos-001, não introduz item novo não verificado."
+    },
+    {
+      "id": "espiritos-035",
+      "question": "O que aconteceu no ano de 1857?",
+      "expected_answer_gist": "Nenhum conteúdo do acervo discute o ano de 1857 como evento histórico — resposta esperada é NoRelevantContext, sem inventar. Mais importante para esta feature: '1857' é um número solto sem marcador de item ('pergunta'/'questão'/'item'/'número'), então NÃO deve disparar o ramo de lookup exato (RF1) — o comportamento esperado é idêntico ao da busca híbrida pura, não deve trazer nenhum chunk pelo ramo exato mesmo que '1857' coincida por acaso com algum item_start/item_end do índice.",
+      "expected_sources": [],
+      "scope": "all",
+      "notes": "Categoria: controle negativo do lookup exato (CA4, busca-exata-item) — número solto (ano) sem marcador de item nunca deve disparar o ItemLookupDetector."
+    },
+    {
+      "id": "espiritos-036",
+      "question": "Qual a pergunta 9999 do Livro dos Espíritos?",
+      "expected_answer_gist": "Item 9999 não existe no livro (numeração vai de 1 a 1019) — resposta esperada é NoRelevantContext, sem fabricar um item/conteúdo que não existe (RF5, busca-exata-item).",
+      "expected_sources": [],
+      "scope": "o-livro-dos-espiritos",
+      "notes": "Categoria: controle negativo do lookup exato (CA5, busca-exata-item) — número de item inexistente no índice não pode produzir falso match nem alucinação."
     }
   ]
 }

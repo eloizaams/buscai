@@ -56,3 +56,6 @@ Registrado aqui pela T9 (`specs/retrieval/tasks.md`), 2026-07-17:
   não ainda uma medição em hardware de produção real (Render/Fly, ADR-0006) — se a latência de
   produção divergir da meta, é débito técnico a registrar explicitamente em `tasks.md`, não motivo
   para relaxar o teste (mesmo critério já fixado na T8).
+- A busca híbrida ganhou um **terceiro ramo estruturado exato** — a CTE `exact_rank` no mesmo
+  `HybridSearchDao`, para lookup direto por número de item numerado (`busca-exata-item`, T4,
+  2026-07-23). Racional completo na nota do ADR-0013 (seção 4).

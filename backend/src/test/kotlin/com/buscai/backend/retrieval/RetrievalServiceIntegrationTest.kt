@@ -147,6 +147,8 @@ class RetrievalServiceIntegrationTest {
         embedding: FloatArray = oneHotEmbedding(0),
         reference: String? = null,
         referenceType: ReferenceType? = null,
+        itemStart: Int? = null,
+        itemEnd: Int? = null,
     ): Chunk =
         chunkRepository.save(
             Chunk(
@@ -159,6 +161,8 @@ class RetrievalServiceIntegrationTest {
                 embedding = embedding,
                 reference = reference,
                 referenceType = referenceType,
+                itemStart = itemStart,
+                itemEnd = itemEnd,
             ),
         )
 
@@ -460,5 +464,37 @@ class RetrievalServiceIntegrationTest {
         val chunk = result.chunks.first { it.chunkId == chunkItemNumerado.id }
         assertEquals("157", chunk.reference)
         assertEquals(ReferenceType.NUMBERED_ITEM, chunk.referenceType)
+    }
+
+    @Test
+    fun `pergunta com marcador de item recupera o chunk pelo ramo exato mesmo sem sinal semantico ou lexico (CA1, busca-exata-item T5)`() {
+        val suffix = UUID.randomUUID()
+        val livro = persistBook("livro-dos-espiritos-lookup-$suffix", "O Livro dos Espíritos")
+        val versao = persistVersion(livro.id, BookVersionStatus.READY)
+        activate(livro, versao.id)
+        // Nem embedding próximo da query (FakeQueryEmbeddingClient sempre devolve oneHotEmbedding(0)
+        // para qualquer texto, então embedding(9) fica ortogonal -> cosineSimilarity = 0.0) nem termo
+        // léxico em comum com a pergunta ("pergunta 157" não aparece no texto do chunk): o único
+        // sinal que pode trazer este chunk é o ramo exato (item_start = item_end = 157), casando a
+        // detecção de RF1 sobre a pergunta com o guard reference_type/range-contains do HybridSearchDao
+        // (T4) e a terceira cláusula do filtro de relevância CA7 (T5, risco crítico R1 do plan.md).
+        val chunkItem157 =
+            persistChunk(
+                versao.id,
+                "Que se atribui à alma humana desígnio depois da morte.",
+                reference = "157",
+                referenceType = ReferenceType.NUMBERED_ITEM,
+                itemStart = 157,
+                itemEnd = 157,
+                embedding = oneHotEmbedding(9),
+            )
+
+        val result = retrievalService.search("qual a pergunta 157 do Livro dos Espíritos?", RetrievalScope.Books(setOf(livro.id)))
+
+        require(result is RetrievalResult.Found) { "esperava Found via ramo exato, obteve $result" }
+        assertTrue(
+            result.chunks.any { it.chunkId == chunkItem157.id },
+            "esperava encontrar o chunk do item 157 só pelo ramo exato: ${result.chunks}",
+        )
     }
 }
